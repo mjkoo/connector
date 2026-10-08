@@ -52,7 +52,16 @@ impl TcpLink {
         bound: Duration,
         cancel: &Cancel,
     ) -> std::io::Result<TcpLink> {
-        let listener = TcpListener::bind((addr, port))?;
+        TcpLink::accept_until(TcpListener::bind((addr, port))?, bound, cancel)
+    }
+
+    /// Waits on an already bound listener, so a caller can learn its port before a
+    /// peer reaches for it.
+    pub fn accept_until(
+        listener: TcpListener,
+        bound: Duration,
+        cancel: &Cancel,
+    ) -> std::io::Result<TcpLink> {
         listener.set_nonblocking(true)?;
         let deadline = Instant::now() + bound;
         loop {

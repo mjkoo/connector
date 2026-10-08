@@ -2,25 +2,15 @@
 
 mod common;
 
-use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use common::{clocked, tmp_root_with_carts};
+use common::{clocked, step, tmp_root_with_carts, Script, FRAME_MS};
 use slot::frontend::Frontend;
 use slot_gfx::{Compositor, HeadlessSurface, OUT_H, OUT_W};
-use slot_input::{Btn, InputSource, Millis, RawEvent, POWER_HOLD_MS};
+use slot_input::{Btn, RawEvent, POWER_HOLD_MS};
 use slot_power::{Battery, Charge, LedState, Platform, SimPlatform};
-
-struct Script(VecDeque<Vec<RawEvent>>);
-
-impl InputSource for Script {
-    fn poll(&mut self, _now: Millis) -> Vec<RawEvent> {
-        self.0.pop_front().unwrap_or_default()
-    }
-}
 
 struct RecordingPanel {
     inner: SimPlatform,
@@ -109,10 +99,10 @@ fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
 }
 
 fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
-    input.0.push_back(vec![RawEvent::Down(btn)]);
-    f.advance(input);
-    input.0.push_back(vec![RawEvent::Up(btn)]);
-    f.advance(input);
+    input.events.push_back(vec![RawEvent::Down(btn)]);
+    step(f, input, FRAME_MS);
+    input.events.push_back(vec![RawEvent::Up(btn)]);
+    step(f, input, FRAME_MS);
 }
 
 #[test]
@@ -131,8 +121,8 @@ fn power_on_a_dozing_device_brings_the_screen_back_before_the_menu() {
         backlight: backlight.clone(),
     }));
     f.upload_faces(&mut c);
-    let mut input = Script(VecDeque::new());
-    f.advance(&mut input);
+    let mut input = Script::new();
+    step(&mut f, &mut input, FRAME_MS);
 
     let shelf = composed(&mut f, &mut c, "shelf");
     let lit = backlight.load(Ordering::Relaxed);
@@ -151,8 +141,8 @@ fn power_on_a_dozing_device_brings_the_screen_back_before_the_menu() {
     );
     assert!(all_black(&dozing), "the doze left something on the screen");
 
-    input.0.push_back(vec![RawEvent::Down(Btn::Power)]);
-    f.advance(&mut input);
+    input.events.push_back(vec![RawEvent::Down(Btn::Power)]);
+    step(&mut f, &mut input, FRAME_MS);
     let woken = composed(&mut f, &mut c, "woken");
     assert_eq!(
         backlight.load(Ordering::Relaxed),
@@ -164,10 +154,8 @@ fn power_on_a_dozing_device_brings_the_screen_back_before_the_menu() {
         "the screen is still the doze's own black"
     );
 
-    let until = Instant::now() + Duration::from_millis(POWER_HOLD_MS + 200);
-    while Instant::now() < until {
-        f.advance(&mut input);
-        std::thread::sleep(Duration::from_millis(8));
+    for _ in 0..(POWER_HOLD_MS + 200) / 8 {
+        step(&mut f, &mut input, 8);
     }
     let menu = composed(&mut f, &mut c, "menu");
     assert_eq!(

@@ -3,8 +3,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use slot::audio::{AudioSink, StubSink};
-use slot::emu::{CoreState, EmuHandle, Speed, FAST_STEPS, FAST_STEPS_MAX};
+use slot::audio::{AudioSink, Ring, StubSink};
+use slot::clock::ManualClock;
+use slot::emu::{CoreState, EmuHandle, Speed, FAST_STEPS, FAST_STEPS_MAX, PRESENT};
 use slot::persist::Snapshot;
 use slot_retro::{
     AvInfo, ButtonMask, CoreError, LinkChannel, MockCore, RetroCore, NETPACKET_RELIABLE,
@@ -45,7 +46,7 @@ fn spawn_into(mut sink: StubSink, sav: Option<Vec<u8>>) -> EmuHandle {
 }
 
 fn wait_for(cond: impl Fn() -> bool) -> bool {
-    let deadline = Instant::now() + Duration::from_secs(2);
+    let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         if cond() {
             return true;
@@ -108,21 +109,23 @@ fn a_requested_load_rewinds_the_core() {
 #[test]
 fn rewinding_walks_the_core_backwards_and_then_plays_on() {
     let emu = spawn();
-    std::thread::sleep(Duration::from_millis(300));
+    let start = frame_count(&emu);
+    assert!(
+        wait_for(|| frame_count(&emu) >= start + 20),
+        "the core never played far enough to have a past"
+    );
     let played = frame_count(&emu);
 
     emu.set_rewinding(true);
-    std::thread::sleep(Duration::from_millis(200));
+    assert!(
+        wait_for(|| frame_count(&emu) < played),
+        "the core did not rewind from {played}"
+    );
     emu.set_rewinding(false);
     let rewound = frame_count(&emu);
-    assert!(
-        rewound < played,
-        "the core did not rewind: {played} then {rewound}"
-    );
 
-    std::thread::sleep(Duration::from_millis(200));
     assert!(
-        frame_count(&emu) > rewound,
+        wait_for(|| frame_count(&emu) > rewound),
         "the core did not resume after the rewind"
     );
 }
@@ -155,20 +158,68 @@ fn a_worker_that_stops_while_muted_leaves_the_sink_audible() {
 
 #[test]
 fn fast_forward_runs_fast_steps_core_frames_per_present() {
-    let emu = spawn();
-    let from = frame_count(&emu);
-    std::thread::sleep(Duration::from_millis(300));
-    let normal = frame_count(&emu) - from;
+    // A core that costs part of every frame catches a worker that measured each
+    // sleep from the end of the frame rather than from the last deadline.
+    let normal = Timed::spawn(Duration::from_millis(5));
+    let (normal, _) = normal.over(PRESENT * 18);
 
-    emu.set_speed(Speed::Fast);
-    let from = frame_count(&emu);
-    std::thread::sleep(Duration::from_millis(300));
-    let fast = frame_count(&emu) - from;
+    let t = Timed::spawn(Duration::ZERO);
+    t.emu.set_speed(Speed::Fast);
+    t.run_for(PRESENT);
+    let (fast, _) = t.over(PRESENT * 18);
 
-    let n = normal as u32;
-    assert!(
-        fast as u32 >= n * (FAST_STEPS - 1) && fast as u32 <= n * (FAST_STEPS + 1),
+    assert_eq!(
+        normal, 18,
+        "normal speed ran {normal} frames in 18 presents"
+    );
+    assert_eq!(
+        fast,
+        normal * u64::from(FAST_STEPS),
         "{fast} frames fast against {normal} normal is not {FAST_STEPS}x"
+    );
+}
+
+#[test]
+fn a_worker_that_wakes_a_little_late_keeps_its_rate() {
+    let t = Timed::spawn(Duration::ZERO);
+    t.clock.set_wake_latency(Duration::from_millis(3));
+    let (ran, _) = t.over(PRESENT * 60);
+    assert_eq!(
+        ran, 60,
+        "{ran} frames in 60 presents when every wake ran 3 ms late"
+    );
+}
+
+#[test]
+fn a_worker_that_wakes_presents_late_drops_them_rather_than_catching_up() {
+    let t = Timed::spawn(Duration::ZERO);
+    t.clock.oversleep_next(PRESENT * 3);
+    // The late wake runs the frame it slept for; the two due while it slept are gone.
+    let (ran, _) = t.over(PRESENT * 18);
+    assert_eq!(
+        ran, 16,
+        "{ran} frames in 18 presents, 2 of them slept through"
+    );
+}
+
+#[test]
+fn the_real_clock_runs_fast_forward_faster_than_normal() {
+    // A slow scheduler stretches both windows alike, so only the ratio is checked.
+    let emu = spawn();
+    let window = Duration::from_millis(300);
+    let over = |speed| {
+        emu.set_speed(speed);
+        assert!(wait_for(|| emu.observed_speed() == speed));
+        let before = frame_count(&emu);
+        std::thread::sleep(window);
+        frame_count(&emu) - before
+    };
+    let normal = over(Speed::Normal);
+    let fast = over(Speed::Fast);
+    assert!(normal > 0, "normal speed ran no frames in {window:?}");
+    assert!(
+        fast > normal * 2,
+        "{fast} frames fast against {normal} normal in the same {window:?}"
     );
 }
 
@@ -183,8 +234,8 @@ fn held_counts(emu: &EmuHandle) -> (u64, u64) {
 
 #[test]
 fn fast_forward_runs_the_chosen_number_of_core_frames_per_present() {
-    let emu = spawn();
-    std::thread::sleep(Duration::from_millis(300));
+    let t = Timed::spawn(Duration::ZERO);
+    t.emu.set_speed(Speed::Fast);
     for (asked, runs) in [
         (2, 2),
         (3, 3),
@@ -193,22 +244,17 @@ fn fast_forward_runs_the_chosen_number_of_core_frames_per_present() {
         (FAST_STEPS_MAX, FAST_STEPS_MAX),
         (FAST_STEPS_MAX + 4, FAST_STEPS_MAX),
     ] {
-        emu.set_fast_steps(asked);
-        let (frames, presents) = held_counts(&emu);
-        emu.set_speed(Speed::Fast);
-        std::thread::sleep(Duration::from_millis(150));
-        let (frames_after, presents_after) = held_counts(&emu);
-        let (ran, shown) = (frames_after - frames, presents_after - presents);
-        assert!(shown > 0, "nothing was presented asking for {asked}");
-        let want = shown * u64::from(runs);
-        assert!(
-            ran <= want,
-            "{ran} frames over {shown} presents ran past the ceiling of {runs}, asking for {asked}"
+        t.emu.set_fast_steps(asked);
+        t.run_for(PRESENT);
+        let (ran, shown) = t.over(PRESENT * 9);
+        assert_eq!(
+            shown, 9,
+            "{shown} presents in 9 refreshes asking for {asked}"
         );
-        assert!(
-            ran * 5 >= want * 4,
-            "{ran} frames over {shown} presents is well short of the ceiling of {runs}, asking \
-             for {asked}: the ceiling is not what bound"
+        assert_eq!(
+            ran,
+            shown * u64::from(runs),
+            "{ran} frames over {shown} presents is not the ceiling of {runs}, asking for {asked}"
         );
     }
 }
@@ -218,16 +264,25 @@ struct Probe {
     cost: Duration,
     skip: bool,
     log: Arc<Mutex<Vec<bool>>>,
+    clock: Option<Arc<ManualClock>>,
 }
 
 impl Probe {
     fn new(cost: Duration) -> (Box<Probe>, Arc<Mutex<Vec<bool>>>) {
+        Probe::with_clock(cost, None)
+    }
+
+    fn with_clock(
+        cost: Duration,
+        clock: Option<Arc<ManualClock>>,
+    ) -> (Box<Probe>, Arc<Mutex<Vec<bool>>>) {
         let log = Arc::new(Mutex::new(Vec::new()));
         let probe = Box::new(Probe {
             inner: MockCore::new(),
             cost,
             skip: false,
             log: log.clone(),
+            clock,
         });
         (probe, log)
     }
@@ -239,8 +294,10 @@ impl RetroCore for Probe {
     }
     fn run_frame(&mut self, input: ButtonMask) {
         self.log.lock().expect("the skip log").push(self.skip);
-        if !self.cost.is_zero() {
-            std::thread::sleep(self.cost);
+        match &self.clock {
+            Some(clock) => clock.advance(self.cost),
+            None if !self.cost.is_zero() => std::thread::sleep(self.cost),
+            None => {}
         }
         self.inner.run_frame(input);
     }
@@ -271,6 +328,60 @@ impl RetroCore for Probe {
     }
 }
 
+/// A worker on a manual clock whose core costs `cost` of that clock a frame.
+/// Between `run_for` calls the worker is parked, so the counts read there are
+/// settled.
+struct Timed {
+    emu: EmuHandle,
+    clock: Arc<ManualClock>,
+    log: Arc<Mutex<Vec<bool>>>,
+}
+
+impl Timed {
+    fn spawn(cost: Duration) -> Timed {
+        Timed::spawn_into(cost, Arc::new(Ring::new(0)))
+    }
+
+    fn spawn_into(cost: Duration, ring: Arc<Ring>) -> Timed {
+        let clock = ManualClock::new();
+        let (core, log) = Probe::with_clock(cost, Some(clock.clone()));
+        let emu = EmuHandle::spawn_clocked(core, PathBuf::from("mock"), ring, clock.clone());
+        emu.set_speed(Speed::Normal);
+        assert!(
+            wait_for(|| emu.state() != CoreState::Loading),
+            "the core never finished loading"
+        );
+        assert_eq!(emu.state(), CoreState::Ready);
+        let timed = Timed { emu, clock, log };
+        timed.run_for(PRESENT);
+        timed
+    }
+
+    fn run_for(&self, d: Duration) {
+        self.clock.run_for(d);
+    }
+
+    fn frames(&self) -> u64 {
+        self.log.lock().expect("the skip log").len() as u64
+    }
+
+    /// Core frames and presents over `d` of the clock.
+    fn over(&self, d: Duration) -> (u64, u64) {
+        let (frames, presents) = (self.frames(), self.emu.published_count());
+        self.run_for(d);
+        (
+            self.frames() - frames,
+            self.emu.published_count() - presents,
+        )
+    }
+
+    fn lock_to_the_display(&self) {
+        self.emu.set_driven(true);
+        self.run_for(PRESENT);
+        assert!(self.emu.locked(), "the worker never locked to the display");
+    }
+}
+
 fn spawn_probe(cost: Duration) -> (EmuHandle, Arc<Mutex<Vec<bool>>>) {
     let mut sink = StubSink::new();
     sink.open(32_768).expect("the stub refused to open");
@@ -290,7 +401,11 @@ fn every_speed_publishes_the_frame_the_core_last_ran() {
     for ceiling in [2, 3, 4, FAST_STEPS_MAX] {
         emu.set_fast_steps(ceiling);
         emu.set_speed(Speed::Fast);
-        std::thread::sleep(Duration::from_millis(120));
+        let from = emu.published_count();
+        assert!(
+            wait_for(|| emu.observed_speed() == Speed::Fast && emu.published_count() > from + 3),
+            "fast forward never presented at a ceiling of {ceiling}"
+        );
         let (frames, _) = held_counts(&emu);
         let shown = emu.latest_frame().expect("nothing was ever published");
 
@@ -309,16 +424,15 @@ fn every_speed_publishes_the_frame_the_core_last_ran() {
 #[test]
 fn a_fast_present_draws_only_its_last_frame() {
     let ceiling = 3;
-    let (emu, log) = spawn_probe(Duration::ZERO);
-    emu.set_fast_steps(ceiling);
-    emu.set_speed(Speed::Fast);
-    std::thread::sleep(Duration::from_millis(60));
-    log.lock().expect("the skip log").clear();
-    std::thread::sleep(Duration::from_millis(150));
-    let (_, presents) = held_counts(&emu);
+    let t = Timed::spawn(Duration::ZERO);
+    t.emu.set_fast_steps(ceiling);
+    t.emu.set_speed(Speed::Fast);
+    t.run_for(PRESENT * 4);
+    t.log.lock().expect("the skip log").clear();
+    let (_, presents) = t.over(PRESENT * 9);
     assert!(presents > 0, "nothing was presented");
 
-    let got = log.lock().expect("the skip log").clone();
+    let got = t.log.lock().expect("the skip log").clone();
     assert!(!got.is_empty(), "no core frames ran");
     let mut drawn = 0;
     let mut skipped_in_a_row = 0;
@@ -335,102 +449,78 @@ fn a_fast_present_draws_only_its_last_frame() {
             skipped_in_a_row = 0;
         }
     }
-    assert!(
-        drawn > 1,
-        "only {drawn} frames were drawn over {presents} presents"
+    assert_eq!(
+        drawn, presents,
+        "{drawn} frames were drawn over {presents} presents"
     );
 }
 
 #[test]
 fn a_present_runs_what_it_can_afford_rather_than_the_whole_ceiling() {
-    let (emu, _log) = spawn_probe(Duration::from_millis(5));
-    emu.set_fast_steps(FAST_STEPS_MAX);
-    let (frames, presents) = held_counts(&emu);
-    emu.set_speed(Speed::Fast);
-    std::thread::sleep(Duration::from_millis(400));
-    let (frames_after, presents_after) = held_counts(&emu);
+    let t = Timed::spawn(Duration::from_millis(5));
+    t.emu.set_fast_steps(FAST_STEPS_MAX);
+    t.emu.set_speed(Speed::Fast);
+    t.run_for(PRESENT * 6);
+    let refreshes = 24;
+    let (ran, shown) = t.over(PRESENT * refreshes);
 
-    let (ran, shown) = (frames_after - frames, presents_after - presents);
+    // A present may span two refreshes when the core cannot reach its ceiling in
+    // one, so the budget is per refresh, not per present.
     assert!(shown > 0, "nothing was presented");
-    let per = ran as f64 / shown as f64;
+    let per = ran as f64 / refreshes as f64;
     assert!(
         per >= 1.0,
-        "{per:.1} frames a present is less than one, so a present ran nothing"
+        "{per:.1} frames a refresh is less than one, so a present ran nothing"
     );
     assert!(
         per <= 4.0,
-        "{per:.1} frames a present at 5 ms each is {:.0} ms of a 16.67 ms present: the budget \
+        "{per:.1} frames a refresh at 5 ms each is {:.0} ms of a 16.67 ms refresh: the budget \
          never stopped it and the ceiling of {FAST_STEPS_MAX} did",
         per * 5.0
     );
 }
 
-fn counting(sink: StubSink) -> Arc<AtomicUsize> {
-    let heard = Arc::new(AtomicUsize::new(0));
-    let tally = heard.clone();
-    std::thread::spawn(move || loop {
-        tally.fetch_add(sink.device_drain(), Ordering::Relaxed);
-        std::thread::sleep(Duration::from_millis(2));
-    });
-    heard
-}
-
-fn spawn_heard() -> (EmuHandle, StubSink, Arc<AtomicUsize>) {
-    let mut sink = StubSink::new();
-    sink.open(32_768).expect("the stub refused to open");
-    let heard = counting(sink.clone());
-    let emu = EmuHandle::spawn(
-        Box::new(MockCore::new()),
-        PathBuf::from("mock"),
-        sink.ring(),
-        None,
-        None,
-    );
-    assert!(
-        wait_for(|| emu.state() == CoreState::Ready),
-        "the core never finished loading"
-    );
-    (emu, sink, heard)
-}
-
-fn heard_per_present(emu: &EmuHandle, sink: &StubSink, heard: &AtomicUsize) -> f64 {
-    let settle = || {
-        let (_, presents) = held_counts(emu);
-        assert!(
-            wait_for(|| sink.ring().queued_frames() == 0),
-            "the device never drained the ring"
-        );
-        std::thread::sleep(Duration::from_millis(20));
-        (presents, heard.load(Ordering::Relaxed))
-    };
-    let (presents, before) = settle();
-    emu.set_speed(Speed::Fast);
-    std::thread::sleep(Duration::from_millis(300));
-    let (presents_after, after) = settle();
-    (after - before) as f64 / (presents_after - presents) as f64
-}
-
 #[test]
 fn fast_forward_is_silent_while_its_sound_is_off() {
-    let (emu, sink, heard) = spawn_heard();
-    emu.set_ff_sound(false);
-    emu.set_speed(Speed::Fast);
-    assert!(wait_for(|| sink.muted()), "fast forward did not mute");
-    let per = heard_per_present(&emu, &sink, &heard);
-    assert_eq!(per, 0.0, "{per:.0} frames a present reached the device");
+    let mut sink = StubSink::new();
+    sink.open(32_768).expect("the stub refused to open");
+    let t = Timed::spawn_into(Duration::ZERO, sink.ring());
+    t.emu.set_ff_sound(false);
+    t.emu.set_speed(Speed::Fast);
+    t.run_for(PRESENT * 4);
+    assert!(sink.muted(), "fast forward did not mute");
+    sink.device_drain();
+    let mut heard = 0;
+    let (ran, _) = t.over(PRESENT);
+    assert!(ran > 0, "fast forward ran no frames");
+    heard += sink.device_drain();
+    for _ in 0..17 {
+        t.run_for(PRESENT);
+        heard += sink.device_drain();
+    }
+    assert_eq!(heard, 0, "{heard} frames reached the device in 18 presents");
 }
 
 #[test]
 fn fast_forward_sound_plays_sped_up_in_real_time() {
-    let (emu, sink, heard) = spawn_heard();
-    emu.set_ff_sound(true);
+    let mut sink = StubSink::new();
+    sink.open(32_768).expect("the stub refused to open");
+    let t = Timed::spawn_into(Duration::ZERO, sink.ring());
+    t.emu.set_ff_sound(true);
     let real_time = 32_768.0 / 60.0;
     for steps in [2, 4] {
-        emu.set_fast_steps(steps);
-        emu.set_speed(Speed::Fast);
-        std::thread::sleep(Duration::from_millis(50));
+        t.emu.set_fast_steps(steps);
+        t.emu.set_speed(Speed::Fast);
+        t.run_for(PRESENT * 4);
         assert!(!sink.muted(), "fast forward muted with its sound on");
-        let per = heard_per_present(&emu, &sink, &heard);
+        sink.device_drain();
+        let presents = t.emu.published_count();
+        let mut heard = 0;
+        for _ in 0..18 {
+            t.run_for(PRESENT);
+            heard += sink.device_drain();
+        }
+        let per = heard as f64 / (t.emu.published_count() - presents) as f64;
         assert!(
             (per / real_time - 1.0).abs() < 0.05,
             "{per:.0} frames a present at {steps}x, against {real_time:.0} in real time"
@@ -455,7 +545,10 @@ fn a_captured_thumbnail_is_the_unfiltered_core_frame() {
     let emu = spawn();
     assert!(wait_for(|| emu.has_published()), "no frame was published");
     emu.set_speed(Speed::Paused);
-    std::thread::sleep(Duration::from_millis(100));
+    assert!(
+        wait_for(|| emu.observed_speed() == Speed::Paused),
+        "the worker never saw the pause"
+    );
     let frame = emu.latest_frame().expect("the published frame went away");
     let png = emu
         .snapshot()
@@ -494,26 +587,38 @@ fn the_renderer_is_handed_whole_gba_frames() {
 #[test]
 fn fast_forward_records_no_rewind_history() {
     let emu = spawn();
-    std::thread::sleep(Duration::from_millis(200));
-    let before_ff = frame_count(&emu);
+    let start = frame_count(&emu);
+    assert!(
+        wait_for(|| frame_count(&emu) >= start + 20),
+        "the core never played far enough to have a past"
+    );
+    let (before_ff, _) = held_counts(&emu);
 
     emu.set_speed(Speed::Fast);
-    std::thread::sleep(Duration::from_millis(300));
-    emu.set_speed(Speed::Normal);
-    let after_ff = frame_count(&emu);
     assert!(
-        after_ff > before_ff,
-        "fast forward did not advance the core: {before_ff} then {after_ff}"
+        wait_for(|| frame_count(&emu) >= before_ff + 300),
+        "fast forward did not advance the core past {before_ff}"
     );
+    let (after_ff, _) = held_counts(&emu);
 
+    // Going straight from the pause into the rewind leaves no normal frames after
+    // the fast stretch, so the first step back shows where the history ends.
     emu.set_rewinding(true);
-    std::thread::sleep(Duration::from_millis(60));
+    emu.set_speed(Speed::Normal);
+    let first = std::cell::Cell::new(after_ff);
+    assert!(
+        wait_for(|| {
+            first.set(frame_count(&emu));
+            first.get() != after_ff
+        }),
+        "the rewind never moved the core"
+    );
     emu.set_rewinding(false);
-    let rewound = frame_count(&emu);
+    let rewound = first.get();
 
     assert!(
-        rewound <= before_ff,
-        "a short rewind landed inside the fast stretch, so it was recorded: \
+        rewound <= before_ff + 1,
+        "the first step back landed inside the fast stretch, so it was recorded: \
          {before_ff} -> {after_ff} -> {rewound}"
     );
 }
@@ -995,49 +1100,37 @@ const PANEL: Duration = Duration::from_micros(16_760);
 
 #[test]
 fn a_driven_worker_runs_one_frame_per_tick() {
-    let emu = spawn();
-    emu.set_driven(true);
-    assert!(
-        wait_for(|| emu.locked()),
-        "the worker never locked to the display"
-    );
-    emu.tick(PANEL);
-    emu.wait_frame(Duration::from_millis(100));
-    let before = emu.published_count();
+    let t = Timed::spawn(Duration::ZERO);
+    t.lock_to_the_display();
+    let before = t.emu.published_count();
     for _ in 0..20 {
-        emu.tick(PANEL);
+        t.emu.tick(PANEL);
         assert!(
-            emu.wait_frame(Duration::from_millis(100)),
+            t.emu.wait_frame(Duration::from_secs(10)),
             "a tick's frame never arrived"
         );
-        std::thread::sleep(Duration::from_millis(8));
     }
-    assert_eq!(emu.published_count(), before + 20, "not one frame per tick");
+    assert_eq!(
+        t.emu.published_count(),
+        before + 20,
+        "not one frame per tick"
+    );
 }
 
 #[test]
 fn a_locked_worker_answers_a_state_request_without_waiting_for_the_tick() {
-    let emu = spawn();
-    emu.set_driven(true);
-    assert!(
-        wait_for(|| emu.locked()),
-        "the worker never locked to the display"
-    );
-    let snapshot = emu.snapshot();
+    let t = Timed::spawn(Duration::ZERO);
+    t.lock_to_the_display();
     for _ in 0..10 {
-        emu.tick(PANEL);
-        assert!(emu.wait_frame(Duration::from_millis(100)));
-        std::thread::sleep(Duration::from_millis(2));
-        let before = emu.published_count();
-        let asked = Instant::now();
-        assert!(snapshot.state().is_some(), "no state came back");
-        let took = asked.elapsed();
-        assert!(
-            took < Duration::from_millis(5),
-            "the state took {took:?}, waiting on a tick that never came"
-        );
+        t.emu.tick(PANEL);
+        assert!(t.emu.wait_frame(Duration::from_secs(10)));
+        // No tick is coming and the clock is not moving, so a worker that waited
+        // for either would never answer.
+        let before = t.emu.published_count();
+        let state = t.emu.request_state().recv_timeout(Duration::from_secs(10));
+        assert!(state.is_ok(), "the state waited on a tick that never came");
         assert_eq!(
-            emu.published_count(),
+            t.emu.published_count(),
             before,
             "answering the request ran a frame"
         );
@@ -1046,18 +1139,56 @@ fn a_locked_worker_answers_a_state_request_without_waiting_for_the_tick() {
 
 #[test]
 fn a_stalled_display_does_not_stall_the_worker() {
-    let emu = spawn();
-    emu.set_driven(true);
-    assert!(
-        wait_for(|| emu.locked()),
-        "the worker never locked to the display"
+    // A real core costs part of every frame; a worker that measured each wait from
+    // the end of the last frame would fall behind 60 Hz by that much.
+    let t = Timed::spawn(Duration::from_millis(5));
+    t.lock_to_the_display();
+    let (_, ran) = t.over(Duration::from_millis(200));
+    assert_eq!(ran, 11, "{ran} frames in a 200 ms stall, not 60 Hz");
+}
+
+#[test]
+fn a_stalled_worker_that_wakes_a_little_late_keeps_its_rate() {
+    let t = Timed::spawn(Duration::from_millis(5));
+    t.lock_to_the_display();
+    t.run_for(Duration::from_millis(100));
+    t.clock.set_wake_latency(Duration::from_millis(3));
+    let (_, ran) = t.over(PRESENT * 60);
+    assert_eq!(
+        ran, 60,
+        "{ran} frames in 60 presents of a stall when every wake ran 3 ms late"
     );
-    let before = emu.published_count();
-    std::thread::sleep(Duration::from_millis(200));
-    let ran = emu.published_count() - before;
-    assert!(
-        (9..=14).contains(&ran),
-        "{ran} frames in a 200 ms stall, where its own 60 Hz would run about 11"
+}
+
+#[test]
+fn a_stalled_worker_that_wakes_presents_late_does_not_catch_up() {
+    let t = Timed::spawn(Duration::from_millis(5));
+    t.lock_to_the_display();
+    t.run_for(Duration::from_millis(100));
+    t.clock.oversleep_next(Duration::from_millis(60));
+    // 60 Hz resumes from the late wake, so 40 ms of the window is left for frames.
+    let (_, ran) = t.over(Duration::from_millis(100));
+    assert_eq!(
+        ran, 2,
+        "{ran} frames in 100 ms of a stall, 60 ms of it overslept"
+    );
+}
+
+#[test]
+fn relocking_after_a_stall_waits_for_the_display_again() {
+    let t = Timed::spawn(Duration::from_millis(5));
+    t.lock_to_the_display();
+    t.run_for(Duration::from_millis(200));
+    t.emu.set_speed(Speed::Fast);
+    t.run_for(PRESENT * 4);
+    t.emu.set_speed(Speed::Normal);
+    // The worker relocks at its next wake, inside this window, so a stall's patience
+    // cannot have run out by its end.
+    let (_, ran) = t.over(Duration::from_millis(20));
+    assert!(t.emu.locked(), "the worker never locked again");
+    assert_eq!(
+        ran, 0,
+        "the worker ran {ran} frames before the display had a chance to tick"
     );
 }
 
@@ -1068,9 +1199,8 @@ fn a_driven_worker_paces_itself_in_fast_forward() {
     emu.set_speed(Speed::Fast);
     assert!(wait_for(|| !emu.locked()), "fast forward stayed locked");
     let before = emu.published_count();
-    std::thread::sleep(Duration::from_millis(200));
     assert!(
-        emu.published_count() > before + 5,
+        wait_for(|| emu.published_count() > before + 5),
         "fast forward waited for ticks nobody sent"
     );
 }
@@ -1083,9 +1213,6 @@ fn waiting_on_an_unlocked_worker_does_not_block() {
     assert!(wait_for(|| !emu.locked()), "a paused worker stayed locked");
     emu.tick(PANEL);
     let began = Instant::now();
-    assert!(!emu.wait_frame(Duration::from_millis(100)));
-    assert!(
-        began.elapsed() < Duration::from_millis(20),
-        "the wait blocked"
-    );
+    assert!(!emu.wait_frame(Duration::from_secs(10)));
+    assert!(began.elapsed() < Duration::from_secs(5), "the wait blocked");
 }

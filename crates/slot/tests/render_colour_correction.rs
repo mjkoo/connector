@@ -149,11 +149,14 @@ fn the_cards_setting_reaches_the_core_through_the_session() {
         write_slot_state(d.path(), &state).expect("write slot.state");
 
         let mut s = Session::boot(d.path().to_path_buf());
+        s.set_driven(true);
         s.feed([RawEvent::Down(Btn::A)], 16);
         s.feed([RawEvent::Up(Btn::A)], 32);
         let deadline = Instant::now() + Duration::from_secs(20);
         let mut now = 32;
-        while !matches!(s.app().phase(), Phase::Playing { .. }) || s.frames_published() < 240 {
+        while !matches!(s.app().phase(), Phase::Playing { .. })
+            || !s.emu().is_some_and(|e| e.locked())
+        {
             assert!(
                 Instant::now() < deadline,
                 "the cart never got playing: {:?}",
@@ -164,16 +167,16 @@ fn the_cards_setting_reaches_the_core_through_the_session() {
             s.update(1.0 / 60.0);
             std::thread::sleep(Duration::from_millis(1));
         }
-        let picture = loop {
-            assert!(Instant::now() < deadline, "no frame was ever published");
-            if let Some(f) = s.frame() {
-                break to_rgba(&f);
-            }
-            now += 16;
-            s.feed([], now);
-            s.update(1.0 / 60.0);
-            std::thread::sleep(Duration::from_millis(1));
-        };
+        // Stepping to a fixed frame count keeps the two pictures at nearly the same
+        // point in the game. The worker can still run a frame of its own if a tick
+        // is late, which the saturation margin below allows for.
+        while s.frames_published() < 240 {
+            assert!(
+                s.step_emulator(Duration::from_micros(16_667), Duration::from_secs(5)),
+                "the core stopped answering ticks"
+            );
+        }
+        let picture = to_rgba(&s.frame().expect("no frame was ever published"));
         write_png(
             if colour { "session-on" } else { "session-off" },
             GBA_W,

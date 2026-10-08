@@ -6,6 +6,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crate::cable::{self, Cable};
+use crate::clock::{EmuClock, ManualClock};
 use slot_retro::{
     ButtonMask, Link, LinkChannel, RetroCore, Rumble, GBA_H, GBA_W, NETPACKET_RELIABLE,
 };
@@ -18,7 +19,8 @@ use crate::persist::Snapshot;
 use crate::resample::Resampler;
 use crate::rewind::{RewindThread, REWIND_BYTES};
 
-const PRESENT: Duration = Duration::from_nanos(16_666_667);
+/// One refresh of the panel the worker paces itself to when nothing drives it.
+pub const PRESENT: Duration = Duration::from_nanos(16_666_667);
 
 pub const FAST_STEPS: u32 = 6;
 
@@ -69,6 +71,7 @@ pub struct EmuHandle {
     join: Option<JoinHandle<()>>,
     rumble: Rumble,
     link: Link,
+    clock: EmuClock,
 }
 
 enum Cmd {
@@ -124,7 +127,17 @@ impl EmuHandle {
         sav: Option<Vec<u8>>,
         resume: Option<Vec<u8>>,
     ) -> Self {
-        Self::spawn_as(core, rom, ring, sav, resume, None)
+        Self::spawn_as(core, rom, ring, sav, resume, None, EmuClock::Real)
+    }
+
+    /// A worker paced by a clock the caller moves, for checking pacing frame by frame.
+    pub fn spawn_clocked(
+        core: Box<dyn RetroCore>,
+        rom: PathBuf,
+        ring: Arc<Ring>,
+        clock: Arc<ManualClock>,
+    ) -> Self {
+        Self::spawn_as(core, rom, ring, None, None, None, EmuClock::Manual(clock))
     }
 
     pub fn spawn_linked(
@@ -135,7 +148,7 @@ impl EmuHandle {
         resume: Option<Vec<u8>>,
         player: u8,
     ) -> Self {
-        Self::spawn_as(core, rom, ring, sav, resume, Some(player))
+        Self::spawn_as(core, rom, ring, sav, resume, Some(player), EmuClock::Real)
     }
 
     fn spawn_as(
@@ -145,6 +158,7 @@ impl EmuHandle {
         sav: Option<Vec<u8>>,
         resume: Option<Vec<u8>>,
         player: Option<u8>,
+        clock: EmuClock,
     ) -> Self {
         let rumble = core.rumble();
         let link = core.net();
@@ -182,6 +196,7 @@ impl EmuHandle {
             shared: shared.clone(),
             cmds: rx,
             player,
+            clock: clock.clone(),
         };
         let worker_link = link.clone();
         let join = std::thread::Builder::new()
@@ -200,6 +215,7 @@ impl EmuHandle {
             join,
             rumble,
             link,
+            clock,
         }
     }
 
@@ -447,6 +463,8 @@ enum Wait {
 impl Drop for EmuHandle {
     fn drop(&mut self) {
         self.shared.stop.store(true, Ordering::Relaxed);
+        // A worker parked on a manual clock would otherwise wait for it forever.
+        self.clock.release();
         if let Some(join) = self.join.take() {
             let _ = join.join();
         }
@@ -458,6 +476,7 @@ struct Worker {
     shared: Arc<Shared>,
     cmds: Receiver<Cmd>,
     player: Option<u8>,
+    clock: EmuClock,
 }
 
 impl Worker {
@@ -524,22 +543,23 @@ impl Worker {
         let mut cost = FrameCost::seed();
         let mut post_cost = PRESENT - FAST_TARGET;
         let mut fast_span: Option<(Instant, Duration)> = None;
-        let mut deadline = Instant::now();
+        let mut deadline = self.clock.now();
         let mut served = 0u64;
         let mut ticked = false;
         let mut paced = 0u64;
         let mut scale = 0.0f64;
-        let mut rate = TickRate::new(Instant::now(), 0);
+        let mut rate = TickRate::new(self.clock.now(), 0);
         let mut stalled = false;
+        let mut due = self.clock.now();
         let mut turbo_frame = 0u32;
         let mut transport: Option<Box<dyn LinkChannel>> = None;
         let mut cable: Option<Cable> = None;
         let mut cable_presents = 0u32;
         let mut cable_stalls = 0u32;
-        let mut cable_said = Instant::now();
+        let mut cable_said = self.clock.now();
         let mut cable_core = Duration::ZERO;
         let mut cable_wait = Duration::ZERO;
-        let mut ff = (0u32, 0u32, Duration::ZERO, Instant::now());
+        let mut ff = (0u32, 0u32, Duration::ZERO, self.clock.now());
         while !self.shared.stop.load(Ordering::Relaxed) {
             for cmd in self.cmds.try_iter() {
                 self.apply(cmd, core.as_mut(), &mut transport, &mut cable, &link);
@@ -602,7 +622,8 @@ impl Worker {
                 && transport.is_none();
             if lock != self.shared.locked.load(Ordering::Relaxed) {
                 self.shared.locked.store(lock, Ordering::Release);
-                deadline = Instant::now();
+                deadline = self.clock.now();
+                stalled = false;
                 rate.restart(deadline, self.current_tick());
                 self.shared.clocked.notify_all();
             }
@@ -635,30 +656,30 @@ impl Worker {
                 }
                 let ceiling = ceiling * span;
                 let budget = one + PRESENT * (span - 1);
-                let began = Instant::now();
+                let began = self.clock.now();
                 let mut ran = 0u32;
                 let (mut skipped, mut drawn) = (None::<Duration>, Duration::ZERO);
                 loop {
                     ran += 1;
-                    let last = ran >= ceiling || cost.last(began.elapsed(), budget);
+                    let last = ran >= ceiling || cost.last(self.clock.since(began), budget);
                     let input = match self.shared.turbo.load(Ordering::Relaxed) {
                         true => input.turbo(turbo_frame),
                         false => input.without_turbo(),
                     };
                     turbo_frame = turbo_frame.wrapping_add(1);
                     core.set_frame_skip(!last);
-                    let frame_began = Instant::now();
+                    let frame_began = self.clock.now();
                     match cable.as_mut() {
                         Some(c) => {
                             if let Some(t) = transport.as_deref_mut() {
                                 t.send(NETPACKET_RELIABLE, &c.sample(input));
                             }
-                            let waited = Instant::now();
+                            let waited = self.clock.now();
                             let ready = loop {
                                 if let Some(pair) = c.ready() {
                                     break Some(pair);
                                 }
-                                if began.elapsed() + cost.draw > budget {
+                                if self.clock.since(began) + cost.draw > budget {
                                     break None;
                                 }
                                 if let Some(t) = transport.as_deref_mut() {
@@ -666,9 +687,9 @@ impl Worker {
                                         c.accept(&buf);
                                     }
                                 }
-                                std::thread::sleep(Duration::from_micros(250));
+                                self.clock.sleep(Duration::from_micros(250));
                             };
-                            cable_wait += waited.elapsed();
+                            cable_wait += self.clock.since(waited);
                             match ready {
                                 Some((p0, p1)) => {
                                     core.run_frame_linked(p0, p1);
@@ -688,7 +709,7 @@ impl Worker {
                         }
                         None => core.run_frame(input),
                     }
-                    let took = frame_began.elapsed();
+                    let took = self.clock.since(frame_began);
                     if last {
                         drawn = took;
                     } else {
@@ -698,13 +719,13 @@ impl Worker {
                         break;
                     }
                 }
-                let core_time = began.elapsed();
+                let core_time = self.clock.since(began);
                 cost.measured(skipped, drawn);
                 if cable.is_some() {
                     cable_presents += 1;
                     cable_core += core_time;
-                    if cable_said.elapsed() >= Duration::from_secs(5) {
-                        let secs = cable_said.elapsed().as_secs_f32();
+                    if self.clock.since(cable_said) >= Duration::from_secs(5) {
+                        let secs = self.clock.since(cable_said).as_secs_f32();
                         eprintln!(
                             "slot: cable: {} presents, {} stalled, {:.1} fps, {:.1} ms core ({:.1} ms waiting) of {:.1} ms present",
                             cable_presents,
@@ -718,16 +739,16 @@ impl Worker {
                         cable_stalls = 0;
                         cable_core = Duration::ZERO;
                         cable_wait = Duration::ZERO;
-                        cable_said = Instant::now();
+                        cable_said = self.clock.now();
                     }
                 }
                 fast_span = Some((began, core_time));
                 if speed != Speed::Fast {
-                    ff = (0, 0, Duration::ZERO, Instant::now());
+                    ff = (0, 0, Duration::ZERO, self.clock.now());
                 } else if crate::session::trace() {
                     ff = (ff.0 + 1, ff.1 + ran, ff.2 + core_time, ff.3);
                     if ff.0 == 300 {
-                        let secs = ff.3.elapsed().as_secs_f32();
+                        let secs = self.clock.since(ff.3).as_secs_f32();
                         eprintln!(
                             "slot: ff: {:.1} frames a present, {:.0} fps, {:.1} ms core of {:.1} ms present, {:.1} ms after",
                             ff.1 as f32 / 300.0,
@@ -736,7 +757,7 @@ impl Worker {
                             secs * 1000.0 / 300.0,
                             post_cost.as_secs_f32() * 1000.0,
                         );
-                        ff = (0, 0, Duration::ZERO, Instant::now());
+                        ff = (0, 0, Duration::ZERO, self.clock.now());
                     }
                 }
                 flush_outbound(&mut transport, &link);
@@ -789,18 +810,21 @@ impl Worker {
             }
 
             if let Some((began, core_time)) = fast_span.take() {
-                post_cost = blend(post_cost, began.elapsed().saturating_sub(core_time));
+                post_cost = blend(post_cost, self.clock.since(began).saturating_sub(core_time));
             }
             self.frame_done(served);
             if lock {
-                let patience = if stalled { PRESENT } else { STALL };
-                let until = Instant::now() + patience;
+                let until = if stalled {
+                    due + PRESENT
+                } else {
+                    self.clock.now() + STALL
+                };
                 loop {
                     match self.next_tick(served, until) {
                         Wait::Tick(tick) => {
                             served = tick;
                             stalled = false;
-                            if let Some(measured) = rate.served(Instant::now(), tick) {
+                            if let Some(measured) = rate.served(self.clock.now(), tick) {
                                 scale = measured;
                             }
                         }
@@ -813,6 +837,12 @@ impl Worker {
                         Wait::Late => {
                             rate.stalled();
                             stalled = true;
+                            let now = self.clock.now();
+                            due = if now.duration_since(until) > PRESENT {
+                                now
+                            } else {
+                                until
+                            };
                         }
                     }
                     break;
@@ -822,9 +852,9 @@ impl Worker {
             }
             ticked = false;
             deadline += PRESENT * span;
-            let now = Instant::now();
+            let now = self.clock.now();
             match deadline.checked_duration_since(now) {
-                Some(wait) => std::thread::sleep(wait),
+                Some(wait) => self.clock.sleep(wait),
                 None => deadline = now,
             }
         }
@@ -939,7 +969,12 @@ impl Worker {
             if self.shared.requested.swap(false, Ordering::AcqRel) {
                 return Wait::Request;
             }
-            let Some(left) = until.checked_duration_since(Instant::now()) else {
+            // An exactly reached deadline is late too: waiting zero for it to pass
+            // would return without the time moving, and spin.
+            let Some(left) = until
+                .checked_duration_since(self.clock.now())
+                .filter(|left| !left.is_zero())
+            else {
                 return Wait::Late;
             };
             if self.shared.stop.load(Ordering::Relaxed)
@@ -947,10 +982,7 @@ impl Worker {
             {
                 return Wait::Late;
             }
-            clock = match self.shared.clocked.wait_timeout(clock, left) {
-                Ok((c, _)) => c,
-                Err(e) => e.into_inner().0,
-            };
+            clock = self.clock.wait_timeout(&self.shared.clocked, clock, left);
         }
     }
 

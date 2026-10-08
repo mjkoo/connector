@@ -109,8 +109,7 @@ fn a_link_that_comes_up_leaves_the_radio_up() {
     let downs = Arc::new(AtomicUsize::new(0));
     let count = downs.clone();
     let peer = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(150));
-        TcpLink::join("127.0.0.1", port)
+        TcpLink::join_until("127.0.0.1", port, Duration::from_secs(10), &Cancel::new())
     });
     let mut starter = LinkStarter::spawn_with(
         Box::new(|_, _| Ok(())),

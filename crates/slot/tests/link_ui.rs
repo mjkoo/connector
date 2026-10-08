@@ -252,9 +252,7 @@ fn a_cancelled_link_says_nothing_and_returns_to_the_game() {
 fn a_link_that_comes_up_holds_linked_for_a_second_then_hands_the_game_back() {
     let (mut app, _d) = playing_on(Core::Gpsp);
     app.apply(Action::GameMenu);
-    let port = common::free_port();
-    let far = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, far) = common::listening_host();
     app.start_link(
         fake_starter(move |_, _| TcpLink::join("127.0.0.1", port)),
         0,
@@ -301,9 +299,7 @@ fn a_link_that_comes_up_holds_linked_for_a_second_then_hands_the_game_back() {
 fn a_peer_lost_during_the_hold_closes_the_screen_and_breaks_the_badge() {
     let (mut app, _d) = playing_on(Core::Gpsp);
     app.apply(Action::GameMenu);
-    let port = common::free_port();
-    let far = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, far) = common::listening_host();
     app.start_link(
         fake_starter(move |_, _| TcpLink::join("127.0.0.1", port)),
         1,
@@ -563,9 +559,7 @@ fn the_open_menu_pauses_the_game_underneath_it() {
 #[test]
 fn a_started_link_reaches_the_emulator_thread_with_its_transport() {
     let (mut s, _d, mut now) = session_playing_on_gpsp();
-    let port = common::free_port();
-    let far = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, far) = common::listening_host();
     s.app_mut().start_link(
         fake_starter(move |_, _| TcpLink::join("127.0.0.1", port)),
         1,
@@ -610,9 +604,7 @@ fn a_button_the_menu_is_using_never_reaches_the_game() {
 #[test]
 fn a_dropped_peer_breaks_the_badge_and_ends_the_session_end_to_end() {
     let (mut s, _d, mut now) = session_playing_on_gpsp();
-    let port = common::free_port();
-    let far = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, far) = common::listening_host();
     s.app_mut().start_link(
         fake_starter(move |_, _| TcpLink::join("127.0.0.1", port)),
         1,
@@ -664,9 +656,7 @@ fn a_dropped_peer_breaks_the_badge_and_ends_the_session_end_to_end() {
 #[test]
 fn a_peer_that_ends_the_link_ends_this_session_without_waiting_out_the_timeout() {
     let (mut s, _d, mut now) = session_playing_on_gpsp();
-    let port = common::free_port();
-    let far = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, far) = common::listening_host();
     s.app_mut().start_link(
         fake_starter(move |_, _| TcpLink::join("127.0.0.1", port)),
         1,
@@ -1276,6 +1266,12 @@ fn a_link_in_a_switched_mode_reloads_the_game_and_then_starts_the_link() {
         runs_at(&mut s, &mut now, Speed::Normal),
         "the game never started running, so a fresh core would look the same"
     );
+    let deadline = Instant::now() + BAIL;
+    while s.frames_published() == 0 {
+        assert!(Instant::now() < deadline, "the game never drew a frame");
+        step(&mut s, &mut now, &[]);
+        std::thread::sleep(Duration::from_millis(1));
+    }
     step(
         &mut s,
         &mut now,

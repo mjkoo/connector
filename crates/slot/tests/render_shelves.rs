@@ -2,14 +2,13 @@
 
 mod common;
 
-use std::collections::VecDeque;
 use std::path::Path;
 
-use common::{clocked, repo_root, tmp_root_with_carts};
+use common::{clocked, repo_root, step, tmp_root_with_carts, Script, FRAME_MS};
 use slot::app::{App, SEATED_AT};
 use slot::frontend::Frontend;
 use slot_gfx::{Compositor, HeadlessSurface, OUT_H, OUT_W};
-use slot_input::{Action, Btn, InputSource, Millis, RawEvent};
+use slot_input::{Action, Btn, RawEvent};
 use slot_power::SimPlatform;
 use slot_store::{Cart, Platform as CartPlatform};
 use slot_ui::{
@@ -17,19 +16,11 @@ use slot_ui::{
     rest_y, Draw, SlotChrome, CART_W, GB_CART_H, GB_LABEL_H, GB_LABEL_Y, LABEL_H, LABEL_Y, PLATE_H,
 };
 
-struct Script(VecDeque<Vec<RawEvent>>);
-
-impl InputSource for Script {
-    fn poll(&mut self, _now: Millis) -> Vec<RawEvent> {
-        self.0.pop_front().unwrap_or_default()
-    }
-}
-
 fn tap(f: &mut Frontend, input: &mut Script, btn: Btn) {
-    input.0.push_back(vec![RawEvent::Down(btn)]);
-    f.advance(input);
-    input.0.push_back(vec![RawEvent::Up(btn)]);
-    f.advance(input);
+    input.events.push_back(vec![RawEvent::Down(btn)]);
+    step(f, input, FRAME_MS);
+    input.events.push_back(vec![RawEvent::Up(btn)]);
+    step(f, input, FRAME_MS);
 }
 
 fn at(px: &[u8], x: usize, y: usize) -> [u8; 3] {
@@ -91,9 +82,8 @@ fn name_ink(px: &[u8]) -> usize {
 
 fn let_the_name_in(f: &mut Frontend, c: &mut Compositor, input: &mut Script) {
     f.compose(c);
-    f.advance(input);
-    std::thread::sleep(std::time::Duration::from_millis(300));
-    f.advance(input);
+    step(f, input, FRAME_MS);
+    step(f, input, 300);
 }
 
 fn composed(f: &mut Frontend, c: &mut Compositor, name: &str) -> Vec<u8> {
@@ -167,8 +157,8 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
     clocked(d.path());
     let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
     f.upload_faces(&mut c);
-    let mut input = Script(VecDeque::new());
-    f.advance(&mut input);
+    let mut input = Script::new();
+    step(&mut f, &mut input, FRAME_MS);
     let_the_name_in(&mut f, &mut c, &mut input);
 
     let gba = composed(&mut f, &mut c, "gba");
@@ -263,8 +253,7 @@ fn the_shoulders_ring_over_a_shelf_for_each_system() {
         "the ring came back to the Game Boy Advance shelf under another system's name"
     );
 
-    std::thread::sleep(std::time::Duration::from_millis(2400));
-    f.advance(&mut input);
+    step(&mut f, &mut input, 2400);
     let later = composed(&mut f, &mut c, "gba-faded");
     assert_eq!(
         name_ink(&later),
@@ -290,8 +279,8 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
 
     let mut f = Frontend::boot(Box::new(SimPlatform::at(d.path().to_path_buf())));
     f.upload_faces(&mut c);
-    let mut input = Script(VecDeque::new());
-    f.advance(&mut input);
+    let mut input = Script::new();
+    step(&mut f, &mut input, FRAME_MS);
     let empty = composed(&mut f, &mut c, "loose-card");
 
     let plate = patch(&empty, 150, 470);
@@ -318,7 +307,7 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
     }
 
     for _ in 0..60 {
-        f.advance(&mut input);
+        step(&mut f, &mut input, FRAME_MS);
     }
     let later = composed(&mut f, &mut c, "loose-card-later");
     for (name, (x, y)) in [
@@ -338,7 +327,7 @@ fn a_card_nobody_has_organised_comes_up_an_empty_shelf() {
     clocked(organised.path());
     let mut f = Frontend::boot(Box::new(SimPlatform::at(organised.path().to_path_buf())));
     f.upload_faces(&mut c);
-    f.advance(&mut input);
+    step(&mut f, &mut input, FRAME_MS);
     let full = composed(&mut f, &mut c, "organised-card");
     let middle = patch(&full, MIDDLE.0, MIDDLE.1);
     assert!(
@@ -361,8 +350,8 @@ fn a_card_on_one_shelf_leaves_the_corner_empty() {
     clocked(one.path());
     let mut f = Frontend::boot(Box::new(SimPlatform::at(one.path().to_path_buf())));
     f.upload_faces(&mut c);
-    let mut input = Script(VecDeque::new());
-    f.advance(&mut input);
+    let mut input = Script::new();
+    step(&mut f, &mut input, FRAME_MS);
     let bare = composed(&mut f, &mut c, "one-shelf");
     assert_eq!(
         name_ink(&bare),
@@ -383,7 +372,7 @@ fn a_card_on_one_shelf_leaves_the_corner_empty() {
     clocked(two.path());
     let mut f = Frontend::boot(Box::new(SimPlatform::at(two.path().to_path_buf())));
     f.upload_faces(&mut c);
-    f.advance(&mut input);
+    step(&mut f, &mut input, FRAME_MS);
     let_the_name_in(&mut f, &mut c, &mut input);
     let marked = composed(&mut f, &mut c, "two-shelves");
     assert!(

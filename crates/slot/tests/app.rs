@@ -132,7 +132,13 @@ fn the_game_does_not_draw_during_the_insert() {
     common::clocked(d.path());
     let mut s = Session::boot(d.path().to_path_buf());
     s.feed([RawEvent::Down(Btn::A), RawEvent::Up(Btn::A)], 16);
-    for i in 0..120 {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut i = 0;
+    while !s.game_visible() {
+        assert!(
+            Instant::now() < deadline,
+            "the core never published, so the insert proved nothing"
+        );
         s.update(1.0 / 60.0);
         std::thread::sleep(Duration::from_millis(1));
         if matches!(s.app().phase(), Phase::Inserting { .. }) {
@@ -141,11 +147,8 @@ fn the_game_does_not_draw_during_the_insert() {
                 "frame {i}: the game is playing behind the cart"
             );
         }
+        i += 1;
     }
-    assert!(
-        s.game_visible(),
-        "the core never published, so the insert proved nothing"
-    );
 }
 
 #[test]

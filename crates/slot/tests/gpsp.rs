@@ -286,20 +286,26 @@ fn a_published_frame_is_the_splash(
         None,
         resume,
     );
+    emu.set_driven(true);
     emu.set_speed(Speed::Normal);
     let deadline = Instant::now() + Duration::from_secs(10);
-    while emu.state() == CoreState::Loading {
+    while emu.state() == CoreState::Loading || !emu.locked() {
         assert!(Instant::now() < deadline, "the core never finished loading");
         std::thread::sleep(Duration::from_millis(2));
     }
     assert_eq!(emu.state(), CoreState::Ready, "the core refused the cart");
 
-    let watch = Instant::now() + Duration::from_secs(3);
-    while Instant::now() < watch {
+    // Three seconds of the game, counted in frames rather than wall time, so a slow
+    // machine sees as much of the boot as a fast one.
+    for _ in 0..180 {
+        emu.tick(Duration::from_micros(16_667));
+        assert!(
+            emu.wait_frame(Duration::from_secs(5)),
+            "the core stopped answering ticks"
+        );
         if emu.latest_frame().is_some_and(|f| common::mostly_lit(&f)) {
             return true;
         }
-        std::thread::sleep(Duration::from_millis(4));
     }
     false
 }

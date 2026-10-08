@@ -22,3 +22,11 @@
 # Parallel implementation worktrees, never content.
 /.worktrees
 .superpowers/
+
+# nix
+/.direnv/
+/result
+/result-*
+
+# Throwaway notes, copied into worktrees by .worktreeinclude
+/.scratch/

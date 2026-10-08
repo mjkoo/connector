@@ -32,10 +32,16 @@ pub struct Ring {
     underruns: AtomicU64,
     consuming: AtomicBool,
     priming: AtomicBool,
+    max_wait: Duration,
 }
 
 impl Ring {
     pub fn new(capacity_frames: usize) -> Self {
+        Ring::with_max_wait(capacity_frames, MAX_WAIT)
+    }
+
+    /// A ring whose `push_blocking` waits up to `max_wait` for the device to make room.
+    pub fn with_max_wait(capacity_frames: usize, max_wait: Duration) -> Self {
         Ring {
             inner: Mutex::new(Inner {
                 buf: vec![0; capacity_frames * 2],
@@ -56,6 +62,7 @@ impl Ring {
             underruns: AtomicU64::new(0),
             consuming: AtomicBool::new(true),
             priming: AtomicBool::new(false),
+            max_wait,
         }
     }
 
@@ -93,7 +100,7 @@ impl Ring {
             self.push(samples);
             return;
         }
-        let deadline = Instant::now() + MAX_WAIT;
+        let deadline = Instant::now() + self.max_wait;
         let mut rest = samples;
         let mut i = self.lock();
         loop {
@@ -187,6 +194,10 @@ impl Ring {
 
     pub fn set_idle(&self, idle: bool) {
         self.idle.store(idle, Ordering::Relaxed);
+    }
+
+    pub fn idle(&self) -> bool {
+        self.idle.load(Ordering::Relaxed)
     }
 
     pub fn set_muted(&self, muted: bool) {

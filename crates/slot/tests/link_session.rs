@@ -19,9 +19,7 @@ use slot_ui::{LinkBadge, Toast};
 
 #[test]
 fn a_packet_survives_the_wire_intact() {
-    let port = common::free_port();
-    let server = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(std::time::Duration::from_millis(150));
+    let (port, server) = common::listening_host();
     let mut client = TcpLink::join("127.0.0.1", port).expect("join");
     let mut host = server.join().expect("host thread");
 
@@ -36,9 +34,7 @@ fn a_packet_survives_the_wire_intact() {
 
 #[test]
 fn batched_writes_keep_their_boundaries() {
-    let port = common::free_port();
-    let server = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(std::time::Duration::from_millis(150));
+    let (port, server) = common::listening_host();
     let mut raw = TcpStream::connect(("127.0.0.1", port)).expect("connect");
     let mut host = server.join().expect("host thread");
 
@@ -55,24 +51,27 @@ fn batched_writes_keep_their_boundaries() {
 
 #[test]
 fn try_recv_never_blocks_on_an_idle_link() {
-    let port = common::free_port();
-    let server = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(std::time::Duration::from_millis(150));
+    let (port, server) = common::listening_host();
     let mut client = TcpLink::join("127.0.0.1", port).expect("join");
     let _host = server.join().expect("host thread");
 
-    let start = std::time::Instant::now();
-    assert_eq!(client.try_recv(), None);
-    assert!(
-        start.elapsed() < std::time::Duration::from_millis(5),
+    // A blocking read on a link nobody writes to never returns, so any bound
+    // tells the two apart; a generous one keeps a slow scheduler out of it.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(client.try_recv());
+    });
+    assert_eq!(
+        rx.recv_timeout(Duration::from_secs(5)),
+        Ok(None),
         "try_recv blocked, which would cost frames"
     );
 }
 
 #[test]
 fn peer_disconnecting_does_not_panic_or_hang() {
-    let port = common::free_port();
-    let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("bound address").port();
     let acceptor = std::thread::spawn(move || listener.accept().expect("accept").0);
     let mut client = TcpLink::join("127.0.0.1", port).expect("join");
     let host_raw = acceptor.join().expect("accept thread");
@@ -91,8 +90,8 @@ fn peer_disconnecting_does_not_panic_or_hang() {
 
 #[test]
 fn dropping_the_link_closes_the_wire() {
-    let port = common::free_port();
-    let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("bound address").port();
     let acceptor = std::thread::spawn(move || listener.accept().expect("accept").0);
     let client = TcpLink::join("127.0.0.1", port).expect("join");
     let mut host_raw = acceptor.join().expect("accept thread");
@@ -112,8 +111,8 @@ fn dropping_the_link_closes_the_wire() {
 
 #[test]
 fn send_never_blocks_on_a_peer_that_stopped_reading() {
-    let port = common::free_port();
-    let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("bound address").port();
     let acceptor = std::thread::spawn(move || listener.accept().expect("accept").0);
     let mut client = TcpLink::join("127.0.0.1", port).expect("join");
     let _peer = acceptor.join().expect("accept thread");
@@ -135,9 +134,7 @@ fn send_never_blocks_on_a_peer_that_stopped_reading() {
 
 #[test]
 fn wrap_disables_nagle_on_both_sockets() {
-    let port = common::free_port();
-    let server = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, server) = common::listening_host();
     let client = TcpLink::join("127.0.0.1", port).expect("join");
     let host = server.join().expect("host thread");
 
@@ -804,8 +801,8 @@ fn a_joiner_can_be_cancelled_while_it_is_retrying() {
 
 #[test]
 fn a_link_whose_peer_goes_away_reports_itself_closed() {
-    let port = common::free_port();
-    let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("bound address").port();
     let acceptor = std::thread::spawn(move || listener.accept().expect("accept").0);
     let client = TcpLink::join("127.0.0.1", port).expect("join");
     let host_raw = acceptor.join().expect("accept thread");
@@ -823,8 +820,8 @@ fn a_link_whose_peer_goes_away_reports_itself_closed() {
 
 #[test]
 fn a_quiet_link_is_not_closed() {
-    let port = common::free_port();
-    let listener = TcpListener::bind(("127.0.0.1", port)).expect("bind");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("bound address").port();
     let acceptor = std::thread::spawn(move || listener.accept().expect("accept").0);
     let client = TcpLink::join("127.0.0.1", port).expect("join");
     let _host_raw = acceptor.join().expect("accept thread");
@@ -835,9 +832,7 @@ fn a_quiet_link_is_not_closed() {
 
 #[test]
 fn ending_a_link_tells_the_peer_rather_than_only_dropping_the_socket() {
-    let port = common::free_port();
-    let server = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, server) = common::listening_host();
     let mut client = TcpLink::join("127.0.0.1", port).expect("join");
     let mut host = server.join().expect("host thread");
 
@@ -861,9 +856,7 @@ fn ending_a_link_tells_the_peer_rather_than_only_dropping_the_socket() {
 
 #[test]
 fn an_unknown_control_frame_is_ignored_and_the_stream_stays_in_step() {
-    let port = common::free_port();
-    let server = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, server) = common::listening_host();
     let mut raw = TcpStream::connect(("127.0.0.1", port)).expect("connect");
     let mut host = server.join().expect("host thread");
 
@@ -889,9 +882,7 @@ fn an_unknown_control_frame_is_ignored_and_the_stream_stays_in_step() {
 
 #[test]
 fn an_empty_payload_is_refused_rather_than_framed_as_the_control_marker() {
-    let port = common::free_port();
-    let server = std::thread::spawn(move || TcpLink::host("127.0.0.1", port).expect("host"));
-    std::thread::sleep(Duration::from_millis(150));
+    let (port, server) = common::listening_host();
     let mut client = TcpLink::join("127.0.0.1", port).expect("join");
     let mut host = server.join().expect("host thread");
 

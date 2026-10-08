@@ -63,6 +63,8 @@ tasks:
       - task: lint:device
       - task: test
       - task: test:card
+      - task: nix:fmt:check
+      - task: flake:check
 
   test:card:
     desc: Test the scripts slot ships on the card, off-device
@@ -70,6 +72,21 @@ tasks:
       - sh card/test-slotlink.sh
       - sh card/test-led.sh
       - sh card/test-coresave.sh
+
+  flake:check:
+    desc: Run every flake check (build, clippy for host and device, doc, fmt, audit, tests)
+    cmds:
+      - nix flake check
+
+  nix:fmt:
+    desc: Format the nix files
+    cmds:
+      - nix fmt
+
+  nix:fmt:check:
+    desc: Fail if any nix file is unformatted
+    cmds:
+      - nix fmt -- --ci
 
   core:
     desc: >-

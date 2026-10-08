@@ -1,13 +1,16 @@
 #![allow(dead_code)]
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI64, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use slot::app::App;
+use slot::frontend::Frontend;
 use slot::persist::Snapshot;
 use slot::session::Session;
+use slot_input::{InputSource, Millis, RawEvent};
 use slot_power::{Battery, Charge, LedState, Motor, Platform, Power, SimPlatform};
 use slot_retro::{ButtonMask, MockCore, RetroCore};
 use slot_store::{write_slot_state, Platform as CartPlatform, SlotState};
@@ -21,12 +24,24 @@ pub fn core_lock() -> MutexGuard<'static, ()> {
     CORE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-pub fn free_port() -> u16 {
-    std::net::TcpListener::bind(("127.0.0.1", 0))
-        .expect("loopback would not give out a port")
+/// A host already listening on a loopback port, so a peer can connect at once
+/// without racing the bind.
+pub fn listening_host() -> (u16, std::thread::JoinHandle<slot::link_net::TcpLink>) {
+    let listener =
+        std::net::TcpListener::bind(("127.0.0.1", 0)).expect("loopback would not give out a port");
+    let port = listener
         .local_addr()
         .expect("a bound listener with no address")
-        .port()
+        .port();
+    let host = std::thread::spawn(move || {
+        slot::link_net::TcpLink::accept_until(
+            listener,
+            Duration::from_secs(10),
+            &slot::link_net::Cancel::new(),
+        )
+        .expect("host")
+    });
+    (port, host)
 }
 
 static LINK_PORT_LOCK: Mutex<()> = Mutex::new(());
@@ -546,4 +561,35 @@ fn seated(root: &Path, snapshot: Box<dyn Snapshot>, state: SlotState) -> App {
         a.update(1.0 / 60.0);
     }
     a
+}
+
+/// Scripted input on a clock of its own, so the frontend sees the same time pass on
+/// every run however slowly the machine gets to each frame.
+pub struct Script {
+    pub events: VecDeque<Vec<RawEvent>>,
+    pub now: Millis,
+}
+
+impl Script {
+    pub fn new() -> Self {
+        Script {
+            events: VecDeque::new(),
+            now: 0,
+        }
+    }
+}
+
+impl InputSource for Script {
+    fn poll(&mut self, _now: Millis) -> Vec<RawEvent> {
+        self.events.pop_front().unwrap_or_default()
+    }
+}
+
+pub const FRAME_MS: Millis = 16;
+
+/// Advances the frontend `ms` on the script's clock.
+pub fn step(f: &mut Frontend, input: &mut Script, ms: Millis) {
+    input.now += ms;
+    let now = input.now;
+    f.advance_at(input, now, ms as f32 / 1000.0);
 }

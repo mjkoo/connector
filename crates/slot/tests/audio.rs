@@ -61,13 +61,15 @@ fn a_steady_producer_and_consumer_neither_drop_nor_starve() {
 
 #[test]
 fn push_blocking_waits_instead_of_discarding() {
-    let r = std::sync::Arc::new(Ring::new(64));
+    let r = std::sync::Arc::new(Ring::with_max_wait(64, Duration::from_secs(60)));
     let w = r.clone();
     let h = std::thread::spawn(move || w.push_blocking(&[7i16; 256]));
     let mut out = vec![0i16; 64];
-    for _ in 0..8 {
-        std::thread::sleep(std::time::Duration::from_millis(2));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !h.is_finished() {
+        assert!(Instant::now() < deadline, "the push never finished");
         r.fill(&mut out);
+        std::thread::sleep(Duration::from_millis(1));
     }
     h.join().unwrap();
     assert_eq!(r.overruns(), 0, "push_blocking dropped rather than waited");
@@ -84,12 +86,20 @@ fn the_ring_holds_enough_to_ride_out_a_late_frame() {
 
 #[test]
 fn a_muted_or_paused_core_does_not_block_on_audio() {
-    let r = std::sync::Arc::new(Ring::new(64));
+    // Nothing drains this ring, so a push that waits for room waits out the whole
+    // minute; one that does not wait returns long before the bound.
+    let r = std::sync::Arc::new(Ring::with_max_wait(64, Duration::from_secs(60)));
     r.set_muted(true);
     let w = r.clone();
-    let h = std::thread::spawn(move || w.push_blocking(&[7i16; 4096]));
-    std::thread::sleep(std::time::Duration::from_millis(50));
-    assert!(h.is_finished(), "a muted sink blocked the emulator thread");
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        w.push_blocking(&[7i16; 4096]);
+        let _ = tx.send(());
+    });
+    assert!(
+        rx.recv_timeout(Duration::from_secs(5)).is_ok(),
+        "a muted sink blocked the emulator thread"
+    );
 }
 
 #[test]
@@ -253,7 +263,14 @@ fn a_rewinding_core_does_not_report_the_device_as_starved() {
     }
 
     emu.set_rewinding(true);
-    std::thread::sleep(Duration::from_millis(60));
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !ring.idle() {
+        assert!(
+            Instant::now() < deadline,
+            "the rewind never reached the ring"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
     sink.device_drain();
     let before = ring.underruns();
     for _ in 0..10 {
