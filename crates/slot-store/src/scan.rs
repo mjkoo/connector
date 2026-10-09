@@ -49,7 +49,7 @@ pub fn scan(root: &Path) -> Result<Vec<Cart>, StoreError> {
             Ok(d) => d,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(e) => {
-                eprintln!("slot: scan: {}: {e}", dir.display());
+                eprintln!("connector: scan: {}: {e}", dir.display());
                 continue;
             }
         };

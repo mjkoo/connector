@@ -20,7 +20,7 @@ fn the_badge_follows_the_latch_rather_than_the_button() {
             ..Default::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let mut s = Session::boot(d.path().to_path_buf());
     let mut now: Millis = 0;
 
@@ -63,7 +63,7 @@ fn the_fast_forward_settings_reach_the_emulator() {
             ..Default::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let mut s = Session::boot(d.path().to_path_buf());
     let mut now: Millis = 0;
 

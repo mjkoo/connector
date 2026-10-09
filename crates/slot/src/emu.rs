@@ -507,7 +507,7 @@ impl Worker {
         link: Link,
     ) {
         if let Err(e) = core.load(&rom) {
-            eprintln!("slot: {e}");
+            eprintln!("connector: {e}");
             self.shared
                 .state
                 .store(CoreState::Failed as u8, Ordering::Release);
@@ -515,13 +515,13 @@ impl Worker {
         }
         if let Some(sav) = sav {
             if let Err(e) = core.load_save_ram(&sav) {
-                eprintln!("slot: save ram: {e}");
+                eprintln!("connector: save ram: {e}");
                 self.shared.sav_refused.store(true, Ordering::Release);
             }
         }
         if let Some(resume) = resume {
             if let Err(e) = core.unserialize(&self.for_core(resume)) {
-                eprintln!("slot: resume: {e}");
+                eprintln!("connector: resume: {e}");
                 self.shared.resume_refused.store(true, Ordering::Release);
             }
         }
@@ -578,19 +578,21 @@ impl Worker {
                         if let Some(state) = c.take_state() {
                             let own = core.serialize().unwrap_or_default();
                             if !link_state::same_bios(&state, &own) {
-                                eprintln!("slot: cable: the host runs another GBA BIOS");
+                                eprintln!("connector: cable: the host runs another GBA BIOS");
                                 self.shared.bios_mismatch.store(true, Ordering::Relaxed);
                             } else {
                                 match core.unserialize(&state) {
                                     Ok(()) => {
                                         eprintln!(
-                                        "slot: cable: restored {} bytes, running the host's game",
+                                        "connector: cable: restored {} bytes, running the host's game",
                                         state.len()
                                     );
                                         c.prime();
                                         t.send(NETPACKET_RELIABLE, &cable::ready_packet());
                                     }
-                                    Err(e) => eprintln!("slot: cable: the state was refused: {e}"),
+                                    Err(e) => {
+                                        eprintln!("connector: cable: the state was refused: {e}")
+                                    }
                                 }
                             }
                         }
@@ -643,7 +645,7 @@ impl Worker {
             if rewinding {
                 if let Some(state) = rewind.pop() {
                     if let Err(e) = core.unserialize(&state) {
-                        eprintln!("slot: rewind: {e}");
+                        eprintln!("connector: rewind: {e}");
                     }
                     core.set_frame_skip(false);
                     core.run_frame(ButtonMask(0));
@@ -731,7 +733,7 @@ impl Worker {
                     if self.clock.since(cable_said) >= Duration::from_secs(5) {
                         let secs = self.clock.since(cable_said).as_secs_f32();
                         eprintln!(
-                            "slot: cable: {} presents, {} stalled, {:.1} fps, {:.1} ms core ({:.1} ms waiting) of {:.1} ms present",
+                            "connector: cable: {} presents, {} stalled, {:.1} fps, {:.1} ms core ({:.1} ms waiting) of {:.1} ms present",
                             cable_presents,
                             cable_stalls,
                             (cable_presents - cable_stalls) as f32 / secs,
@@ -754,7 +756,7 @@ impl Worker {
                     if ff.0 == 300 {
                         let secs = self.clock.since(ff.3).as_secs_f32();
                         eprintln!(
-                            "slot: ff: {:.1} frames a present, {:.0} fps, {:.1} ms core of {:.1} ms present, {:.1} ms after",
+                            "connector: ff: {:.1} frames a present, {:.0} fps, {:.1} ms core of {:.1} ms present, {:.1} ms after",
                             ff.1 as f32 / 300.0,
                             ff.1 as f32 / secs,
                             ff.2.as_secs_f32() * 1000.0 / 300.0,
@@ -807,7 +809,7 @@ impl Worker {
                     if crate::session::trace() && paced.is_multiple_of(TRACE_EVERY) {
                         let (dropped, starved) = (ring.overruns(), ring.underruns());
                         eprintln!(
-                            "slot: audio: {queued}/{target} queued, {dropped} dropped, {starved} starved, locked {lock} at {scale:.5}"
+                            "connector: audio: {queued}/{target} queued, {dropped} dropped, {starved} starved, locked {lock} at {scale:.5}"
                         );
                     }
                 }
@@ -860,7 +862,7 @@ impl Worker {
         ring.set_idle(false);
         let (dropped, starved) = (ring.overruns(), ring.underruns());
         if dropped > 0 || starved > 0 || crate::session::trace() {
-            eprintln!("slot: audio: {dropped} samples dropped, {starved} starved");
+            eprintln!("connector: audio: {dropped} samples dropped, {starved} starved");
         }
     }
 
@@ -877,11 +879,11 @@ impl Worker {
                 Ok(state) => {
                     let _ = reply.send(self.for_card(state));
                 }
-                Err(e) => eprintln!("slot: {e}"),
+                Err(e) => eprintln!("connector: {e}"),
             },
             Cmd::Load(state) => {
                 if let Err(e) = core.unserialize(&self.for_core(state)) {
-                    eprintln!("slot: {e}");
+                    eprintln!("connector: {e}");
                 }
             }
             Cmd::Sav(reply) => {
@@ -913,12 +915,12 @@ impl Worker {
                 if player == 0 {
                     match core.serialize() {
                         Ok(state) => {
-                            eprintln!("slot: cable: sending {} bytes of state", state.len());
+                            eprintln!("connector: cable: sending {} bytes of state", state.len());
                             for p in cable::state_packets(&state) {
                                 wire.send(NETPACKET_RELIABLE, &p);
                             }
                         }
-                        Err(e) => eprintln!("slot: cable: the core would not serialize: {e}"),
+                        Err(e) => eprintln!("connector: cable: the core would not serialize: {e}"),
                     }
                     c.prime();
                 }

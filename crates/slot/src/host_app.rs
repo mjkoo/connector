@@ -36,7 +36,7 @@ impl ApplicationHandler for Slot {
         let (surface, mut compositor) = match built {
             Ok(gfx) => gfx,
             Err(e) => {
-                eprintln!("slot: {e}");
+                eprintln!("connector: {e}");
                 events.exit();
                 return;
             }
@@ -62,7 +62,7 @@ impl ApplicationHandler for Slot {
                 let swapped = surface.swap();
                 slot::latency::swapped(swap.elapsed().as_secs_f64() * 1000.0);
                 if let Err(e) = swapped {
-                    eprintln!("slot: {e}");
+                    eprintln!("connector: {e}");
                     events.exit();
                     return;
                 }
@@ -89,12 +89,12 @@ pub fn run() {
     let events = match EventLoop::new() {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("slot: {e}");
+            eprintln!("connector: {e}");
             return;
         }
     };
     events.set_control_flow(ControlFlow::Poll);
     if let Err(e) = events.run_app(&mut Slot::new()) {
-        eprintln!("slot: {e}");
+        eprintln!("connector: {e}");
     }
 }

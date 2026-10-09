@@ -1,29 +1,43 @@
 <div align="center">
 
-<img src=".github/resources/banner.png" width="100%" alt="slot. A bespoke, Game Boy-centric frontend for the Anbernic RG SP.">
+# connector
 
-<a href="LICENSE"><img src="https://img.shields.io/github/license/BrandonKowalski/slot?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="License"></a>
-<a href="https://github.com/BrandonKowalski/slot/stargazers"><img src="https://img.shields.io/github/stars/BrandonKowalski/slot?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="Stars"></a>
-<a href="https://github.com/BrandonKowalski/slot/releases"><img src="https://img.shields.io/github/downloads/BrandonKowalski/slot/total?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="Downloads"></a>
-<a href="https://slot-cfw.fyi"><img src="https://img.shields.io/badge/Guide-slot--cfw.fyi-4d4d57?style=for-the-badge&labelColor=242429" height="36" alt="Guide"></a>
+A Game Boy-centric frontend for the Anbernic RG SP, built for link play.
+
+<a href="LICENSE"><img src="https://img.shields.io/github/license/mjkoo/slot?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="License"></a>
+<a href="https://github.com/mjkoo/slot/releases"><img src="https://img.shields.io/github/downloads/mjkoo/slot/total?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="Downloads"></a>
 <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-4d4d57?style=for-the-badge&labelColor=242429" height="36" alt="Changelog"></a>
 
 </div>
 
 ---
 
-# What is slot?
+> [!NOTE]
+> connector is a derivative of [slot.](https://github.com/BrandonKowalski/slot) by
+> Brandon T. Kowalski. It is not an official slot. release and is not affiliated with or
+> endorsed by the slot. project. See [Upstream and credits](#upstream-and-credits).
 
-A bespoke, Game Boy-centric frontend for the Anbernic RG SP.
+# What is connector?
 
-Has support for GBA, GBC, and GB titles only.
+A Game Boy-centric frontend for the Anbernic RG SP, with support for GBA, GBC and GB titles
+only. It starts from slot. and adds its own work, link play over Wi-Fi first.
 
 > [!IMPORTANT]
-> ROMs must be unzipped. slot does not read `.zip` or `.7z` files.
+> ROMs must be unzipped. connector does not read `.zip` or `.7z` files.
 
-A full user guide can be found at [slot-cfw.fyi](https://slot-cfw.fyi).
+A user guide lives in [`site/`](site/index.html). Release notes are in the
+[changelog](CHANGELOG.md).
 
-Release notes can be found in the [changelog](CHANGELOG.md).
+## Moving from slot.
+
+Copy the contents of a release's `connector-<tag>/` folder onto the card as you would a
+slot. update.
+
+- Your settings carry over: `Config/slot.state` becomes `Config/connector.state` on first
+  boot.
+- Games, saves, states, labels, BIOS files and wallpapers stay where they are.
+- On first boot, slot.'s `System/slot` binary, its logs (`slot.log`, `slot-session.log`) and
+  any `crash/slot.core` are removed. The log is now `connector.log`.
 
 ---
 
@@ -51,18 +65,40 @@ Release notes can be found in the [changelog](CHANGELOG.md).
 
 The RG34XX will likely work from 1.4.0. The RG34XXSP may not map its sticks correctly.
 
-If you have one of the Untested devices, or have tried slot on a device not listed, please [open an issue on GitHub](https://github.com/BrandonKowalski/slot/issues) and let me know how it went.
+If you have one of the Untested devices, or have tried connector on a device not listed, please [open an issue here](https://github.com/mjkoo/slot/issues). Please do not report connector problems to the slot. project.
 
 ---
 
+# Upstream and credits
+
+connector is a fork of [slot.](https://github.com/BrandonKowalski/slot) by
+**Brandon T. Kowalski**. His frontend, its design, its UI and art, the AGS-102 sticker and
+wireless adapter, the cart sounds (a recording of his childhood Game Boy) and most of the
+code are the foundation this project is built on. Brandon must continue to receive credit
+for that work. If you enjoy connector, consider
+[supporting him on Ko-fi](https://ko-fi.com/kwallbmoc).
+
+- connector tracks slot. and merges its improvements.
+- connector is not affiliated with or endorsed by the slot. project. Please report problems
+  with connector [here](https://github.com/mjkoo/slot/issues), never to slot.
+- The user guide's Cart Studio links point to slot.'s Cart Studio, which belongs to the
+  slot. project.
+
+Other credits, carried over from slot.: emulation by mGBA and gpSP, BaseOS by pvaibhav, Open
+Sans and Nerd Fonts Symbols by Ryan L McIntyre, and the panel mask derived from Gigaherz's
+LCD3x. Core and shader licences ship in `System/licenses/`.
+
+## Licence
+
+connector is free software under the GNU General Public License, version 3 or later. See
+[LICENSE](LICENSE).
+
+- Copyright (C) 2026 Brandon T. Kowalski (slot.)
+- Copyright (C) 2026 Maxwell Koo and contributors (connector's modifications)
+
+Every release links to the source it was built from.
+
 # AI Disclosure
 
-The Rust frontend was put together by Claude Opus. I reviewed everything that was
-produced. All documentation is 100% free-range, meatbag prose.
-
-The project is extremely low stakes. I wanted a bespoke frontend for my RG SP and thought
-that something that evokes the feeling of using my GBA SP as a kid would be pretty neat.
-
-Use it, don't use it, I don't care.
-
-Figured I should share the end result of all the wasted water. ✌🏻
+slot.'s Rust frontend was put together by Claude Opus and reviewed by Brandon T. Kowalski.
+connector's changes are also written with Claude and reviewed by its maintainers.

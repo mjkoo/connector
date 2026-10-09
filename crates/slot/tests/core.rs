@@ -80,7 +80,7 @@ fn a_cart_the_real_core_refuses_comes_back_out_of_the_slot() {
     let Some(dylib) = common::vendored_core() else {
         return;
     };
-    std::env::set_var("SLOT_CORE", dylib);
+    std::env::set_var("CONNECTOR_CORE", dylib);
     let d = common::tmp_root_with_carts(&["Broken"]);
     common::clocked(d.path());
     let mut s = Session::boot(d.path().to_path_buf());

@@ -86,7 +86,7 @@ impl Pass {
 #[test]
 fn the_whole_pass_from_boot_to_resume() {
     if let Some(dylib) = common::vendored_core() {
-        std::env::set_var("SLOT_CORE", dylib);
+        std::env::set_var("CONNECTOR_CORE", dylib);
     }
     let d = common::tmp_root_with_real_carts(&["Advance Wars", "Emerald"]);
     let root = d.path();

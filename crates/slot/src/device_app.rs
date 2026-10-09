@@ -64,25 +64,25 @@ impl Pacer {
 }
 
 pub fn run() {
-    let root = std::env::var_os("SLOT_ROOT")
+    let root = std::env::var_os("CONNECTOR_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(CARD));
     let mut surface = match FbdevSurface::new() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("slot: {e}");
+            eprintln!("connector: {e}");
             return;
         }
     };
     let mut compositor = match Compositor::new(&surface) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("slot: {e}");
+            eprintln!("connector: {e}");
             return;
         }
     };
     let platform = DevicePlatform::new(root.clone());
-    eprintln!("slot: {}", platform.report());
+    eprintln!("connector: {}", platform.report());
     platform.trace_boot();
     let mut frontend = Frontend::boot(Box::new(platform));
     frontend.upload_faces(&mut compositor);
@@ -112,7 +112,7 @@ pub fn run() {
         let swap = Instant::now();
         let work = swap - began;
         if let Err(e) = surface.swap() {
-            eprintln!("slot: {e}");
+            eprintln!("connector: {e}");
             return;
         }
         let swap_took = swap.elapsed();
@@ -124,7 +124,7 @@ pub fn run() {
             early += u32::from(swap_took > pacer.period / 2);
             if frames == 600 {
                 eprintln!(
-                    "slot: pace: 600 frames, {missed} missed a latch, {early} drawn early, work {:.1} ms, period {:.2} ms",
+                    "connector: pace: 600 frames, {missed} missed a latch, {early} drawn early, work {:.1} ms, period {:.2} ms",
                     pacer.work.as_secs_f64() * 1e3,
                     pacer.period.as_secs_f64() * 1e3
                 );

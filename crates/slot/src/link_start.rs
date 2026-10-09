@@ -11,7 +11,7 @@ pub const HOST_ADDR: &str = "127.0.0.1";
 
 pub const DEFAULT_LINK_PORT: u16 = 7211;
 
-const PORT_ENV: &str = "SLOT_LINK_PORT";
+const PORT_ENV: &str = "CONNECTOR_LINK_PORT";
 
 pub fn link_port() -> u16 {
     let Some(raw) = std::env::var_os(PORT_ENV) else {
@@ -23,7 +23,7 @@ pub fn link_port() -> u16 {
     match raw.to_str().and_then(|s| s.trim().parse::<u16>().ok()) {
         None | Some(0) => {
             eprintln!(
-                "slot: {PORT_ENV}={:?} is not a port a link can meet on, using {DEFAULT_LINK_PORT}",
+                "connector: {PORT_ENV}={:?} is not a port a link can meet on, using {DEFAULT_LINK_PORT}",
                 raw.to_string_lossy()
             );
             DEFAULT_LINK_PORT
@@ -144,7 +144,7 @@ impl LinkStarter {
                     RadioFail::NoHost => LinkFail::NobodyCame,
                     RadioFail::Cancelled => LinkFail::Cancelled,
                     RadioFail::Radio(why) => {
-                        eprintln!("slot: link: {role:?} could not bring the radio up: {why}");
+                        eprintln!("connector: link: {role:?} could not bring the radio up: {why}");
                         LinkFail::Radio
                     }
                 };
@@ -153,18 +153,18 @@ impl LinkStarter {
                 return;
             }
             let _ = tx.send(LinkProgress::At(LinkStep::Waiting));
-            eprintln!("slot: link: {role:?} using {HOST_ADDR}:{port}");
+            eprintln!("connector: link: {role:?} using {HOST_ADDR}:{port}");
             match socket(port, &flag) {
                 Ok(link) => {
-                    eprintln!("slot: link: {role:?} connected on {HOST_ADDR}:{port}");
+                    eprintln!("connector: link: {role:?} connected on {HOST_ADDR}:{port}");
                     if tx.send(LinkProgress::Ready(link)).is_err() {
-                        eprintln!("slot: link: nobody left to hand it to, radio back down");
+                        eprintln!("connector: link: nobody left to hand it to, radio back down");
                         radio_down();
                     }
                 }
                 Err(e) => {
                     eprintln!(
-                        "slot: link: {role:?} failed on {HOST_ADDR}:{port}: {e} (kind {:?})",
+                        "connector: link: {role:?} failed on {HOST_ADDR}:{port}: {e} (kind {:?})",
                         e.kind()
                     );
                     radio_down();

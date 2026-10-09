@@ -55,7 +55,7 @@ fn palettes_on(root: &Path, on: bool) {
             ..SlotState::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
 }
 
 #[test]

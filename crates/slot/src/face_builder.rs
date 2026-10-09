@@ -37,7 +37,7 @@ impl FaceBuilder {
                 }
             });
         if let Err(e) = spawned {
-            eprintln!("slot: faces: worker thread failed to start: {e}");
+            eprintln!("connector: faces: worker thread failed to start: {e}");
         }
         FaceBuilder { requests, built }
     }

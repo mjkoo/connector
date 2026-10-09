@@ -78,7 +78,7 @@ fn the_chord_recolours_the_running_game() {
         eprintln!("no mgba dylib, skipping");
         return;
     };
-    std::env::set_var("SLOT_CORE", dylib);
+    std::env::set_var("CONNECTOR_CORE", dylib);
     let _g = common::core_lock();
     let Some(d) = root_with_catrap() else {
         eprintln!("no Catrap on this machine's card, skipping");
@@ -92,7 +92,7 @@ fn the_chord_recolours_the_running_game() {
             ..SlotState::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let (mut s, _motor) = session_with_platform(d.path());
     let mut now = 0;
     play(&mut s, &mut now);

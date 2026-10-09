@@ -59,7 +59,7 @@ impl Rewind {
                 self.cur = Some(prev);
             }
             Err(e) => {
-                eprintln!("slot: rewind: {e}");
+                eprintln!("connector: rewind: {e}");
                 self.deltas.clear();
                 self.bytes = 0;
             }

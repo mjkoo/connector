@@ -134,7 +134,7 @@ fn adapter_face() -> CartFace {
     };
     let s = ADAPTER_SCALE;
     let rows: [LabelRow; 6] = [
-        (0.0, -58.9, "SLOT", 5.6 * s, LOGO_INK, Align::Centre),
+        (0.0, -58.9, "CONNECTOR", 3.6 * s, LOGO_INK, Align::Centre),
         (
             0.0,
             -23.4,
@@ -162,7 +162,7 @@ fn adapter_face() -> CartFace {
         (
             -37.0,
             -7.8,
-            "MADE IN ITHACA",
+            "AFTER SLOT. BY B. KOWALSKI",
             2.7 * s,
             LABEL_INK,
             Align::Left,
@@ -170,7 +170,7 @@ fn adapter_face() -> CartFace {
         (
             37.0,
             -7.8,
-            "S/LOT-A-WA-USA",
+            "CONNECTOR-A-WA",
             2.7 * s,
             LABEL_INK,
             Align::Right,

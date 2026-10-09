@@ -24,18 +24,18 @@ for f in os.listdir(sys.argv[2]):
         break' "$cart" "$card/Games/$(echo "$platform" | tr a-z A-Z)")
 	fi
 	sed -i.bak "s|^cart=.*|cart=$cart|; s|^cart_platform=.*|cart_platform=$platform|" \
-		"$work/card/Config/slot.state"
+		"$work/card/Config/connector.state"
 	sed -n 's/^# state: *//p' "$here/clips/$name.txt" | while IFS='=' read -r key value; do
-		grep -v "^$key=" "$work/card/Config/slot.state" > "$work/state" || true
+		grep -v "^$key=" "$work/card/Config/connector.state" > "$work/state" || true
 		echo "$key=$value" >> "$work/state"
-		mv "$work/state" "$work/card/Config/slot.state"
+		mv "$work/state" "$work/card/Config/connector.state"
 	done
 	core=$(sed -n 's/^# core: *//p' "$here/clips/$name.txt")
 	[ -n "$core" ] && echo "$cart = $core" >> "$work/card/Config/selected_core.ini"
 	clips=$(sed -n 's/^rec \([a-z0-9-]*\)$/\1/p' "$here/clips/$name.txt")
 	out="$here/$name.mp4"
 	[ -n "$clips" ] && out="$here"
-	SLOT_SILENT=1 target/release/examples/record "$work/card" "$here/clips/$name.txt" "$out"
+	CONNECTOR_SILENT=1 target/release/examples/record "$work/card" "$here/clips/$name.txt" "$out"
 	for clip in ${clips:-$name}; do
 		ffmpeg -v error -y -i "$here/$clip.mp4" -vf "select=eq(n\,0)" -vframes 1 \
 			-c:v libwebp -quality 82 "$here/$clip.webp"

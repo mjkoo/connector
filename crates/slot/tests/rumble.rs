@@ -45,7 +45,7 @@ fn with_rumble_off_the_motor_stays_still_whatever_the_core_asks() {
             ..SlotState::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let (mut s, motor) = session_with_platform(d.path());
     let mut now = 0;
     play(&mut s, &mut now);

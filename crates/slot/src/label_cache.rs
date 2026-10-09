@@ -31,7 +31,7 @@ pub fn label_art(root: &Path, cart: &Cart) -> Option<Vec<u8>> {
     bytes.extend_from_slice(&ch.to_le_bytes());
     bytes.extend_from_slice(art.as_deref().unwrap_or_default());
     if let Err(e) = std::fs::write(&cached, &bytes) {
-        eprintln!("slot: label cache: {}: {e}", cached.display());
+        eprintln!("connector: label cache: {}: {e}", cached.display());
     }
     art
 }
@@ -94,7 +94,7 @@ impl Rebuild {
                     done.fetch_add(1, Ordering::Release);
                 });
             if let Err(e) = spawned {
-                eprintln!("slot: label cache: rebuild thread failed to start: {e}");
+                eprintln!("connector: label cache: rebuild thread failed to start: {e}");
             }
         }
         Rebuild { done, total }

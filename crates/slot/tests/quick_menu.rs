@@ -22,7 +22,7 @@ fn on_carousel_with(state: SlotState) -> (TempDir, App, Clock) {
             ..state
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let (a, clock) = app_booting_at(d.path(), CLOCK_IS_SET);
     assert!(
         matches!(a.phase(), Phase::Shelf),
@@ -313,7 +313,8 @@ fn colour_correction_leaves_the_settings_around_it_alone() {
 #[test]
 fn the_arrows_change_nothing_on_a_row_that_opens() {
     let (d, mut a, _) = on_carousel();
-    let before = std::fs::read(d.path().join("Config/slot.state")).expect("read slot.state");
+    let before =
+        std::fs::read(d.path().join("Config/connector.state")).expect("read connector.state");
     for row in [QuickRow::DateTime, QuickRow::About] {
         open_at(&mut a, row);
         press(&mut a, Btn::Left);
@@ -322,7 +323,7 @@ fn the_arrows_change_nothing_on_a_row_that_opens() {
         a.apply(Action::QuickMenu);
     }
     assert_eq!(
-        std::fs::read(d.path().join("Config/slot.state")).expect("read slot.state"),
+        std::fs::read(d.path().join("Config/connector.state")).expect("read connector.state"),
         before,
         "an arrow on a row that opens wrote the card"
     );

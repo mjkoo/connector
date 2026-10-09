@@ -43,15 +43,15 @@ pub const CREDITS: [&str; 10] = [
     "OPEN SANS AND NERD FONTS",
     "SYMBOLS BY RYAN L MCINTYRE.",
     "THE PANEL MASK IS DERIVED",
-    "FROM GIGAHERZ'S LCD3X. THE",
-    "CART SOUNDS ARE MY CHILDHOOD",
-    "GAMEBOY. I WASTED WATER",
-    "BUILDING THIS WITH CLAUDE.",
+    "FROM GIGAHERZ'S LCD3X. BASED",
+    "ON SLOT. BY BRANDON T.",
+    "KOWALSKI, CART SOUNDS AND ALL.",
+    "BUILT WITH CLAUDE.",
 ];
 
-pub const ORIGIN: [&str; 2] = ["S/LOT-USA", "MADE IN ITHACA"];
+pub const ORIGIN: [&str; 2] = ["CONNECTOR", "AFTER SLOT."];
 
-pub const COPYRIGHT: &str = "\u{a9} 2026 BRANDON T. KOWALSKI";
+pub const COPYRIGHT: &str = "\u{a9} 2026 BRANDON T. KOWALSKI, MAXWELL KOO";
 
 pub const HOME: &str = "SEE README.";
 
@@ -234,7 +234,7 @@ pub fn sticker_face(f: &StickerFields) -> UndoFace {
 
     let bars_y = panel_y + 14;
     let bars_h = 62;
-    let payload = format!("SLOT-{}-{}", f.serial, f.dirty_digit);
+    let payload = format!("CONNECTOR-{}-{}", f.serial, f.dirty_digit);
     if let Some(run) = code39(&format!("*{payload}*")) {
         let syms = run.len() as f32 / 9.0;
         let per_sym = 3.0 * CODE39_WIDE + 7.0 * CODE39_NARROW;

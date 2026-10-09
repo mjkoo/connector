@@ -15,7 +15,7 @@ impl LinkArtBuilder {
                 let _ = tx.send(link_art());
             });
         if let Err(e) = spawned {
-            eprintln!("slot: link art worker: {e}");
+            eprintln!("connector: link art worker: {e}");
         }
         LinkArtBuilder { built }
     }

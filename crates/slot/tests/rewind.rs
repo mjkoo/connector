@@ -128,7 +128,7 @@ fn the_rewind_bar_is_up_while_l2_is_held_and_gone_once_it_is_let_go() {
             ..Default::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let mut s = Session::boot(d.path().to_path_buf());
     let mut now: Millis = 0;
 
@@ -169,7 +169,7 @@ fn a_live_link_session_refuses_to_actually_rewind() {
             ..Default::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let mut s = Session::boot(d.path().to_path_buf());
     let mut now: Millis = 0;
 

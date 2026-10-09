@@ -28,7 +28,7 @@ fn err<E: std::fmt::Display>(e: E) -> GfxError {
 }
 
 fn size() -> (u32, u32) {
-    std::env::var("SLOT_WINDOW")
+    std::env::var("CONNECTOR_WINDOW")
         .ok()
         .and_then(|v| {
             let (w, h) = v.split_once('x')?;
@@ -38,13 +38,13 @@ fn size() -> (u32, u32) {
 }
 
 fn bare() -> bool {
-    std::env::var_os("SLOT_BARE").is_some_and(|v| v != "0")
+    std::env::var_os("CONNECTOR_BARE").is_some_and(|v| v != "0")
 }
 
 impl HostSurface {
     pub fn new(events: &ActiveEventLoop) -> Result<Self, GfxError> {
         let mut attrs = Window::default_attributes()
-            .with_title("slot.")
+            .with_title("connector")
             .with_inner_size(winit::dpi::PhysicalSize::<u32>::from(size()));
         if bare() {
             attrs = attrs.with_decorations(false);

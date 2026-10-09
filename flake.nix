@@ -1,5 +1,5 @@
 {
-  description = "slot. - a Game Boy-centric frontend for the Anbernic RG SP";
+  description = "connector - a Game Boy-centric frontend for the Anbernic RG SP";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -52,7 +52,8 @@
           };
           commonArgs = {
             inherit src;
-            inherit (craneLib.crateNameFromCargoToml { cargoToml = ./crates/slot/Cargo.toml; }) pname version;
+            pname = "connector";
+            inherit (craneLib.crateNameFromCargoToml { cargoToml = ./crates/slot/Cargo.toml; }) version;
             strictDeps = true;
             # The host build links cpal against ALSA and gilrs against udev on Linux.
             # The device build dlopens everything it needs, so it adds nothing here.
@@ -100,7 +101,7 @@
         default = builds.${system}.crate;
       });
 
-      # The host build and its tests only target macOS: Linux runs slot on the
+      # The host build and its tests only target macOS: Linux runs connector on the
       # device, which builds in a container.
       checks = lib.genAttrs (lib.filter (lib.hasSuffix "-darwin") lib.systems.flakeExposed) (
         system:
@@ -121,7 +122,7 @@
             b.checkArgs
             // {
               cargoArtifacts = b.checkArtifacts;
-              pname = "slot-device";
+              pname = "connector-device";
               cargoExtraArgs = "--locked -p slot --no-default-features --features device";
               cargoClippyExtraArgs = "-- --deny warnings";
             }

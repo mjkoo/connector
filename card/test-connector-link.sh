@@ -2,7 +2,7 @@
 set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/System/slotlink.sh"
+SCRIPT="$HERE/System/connector-link.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 FAILS=0
@@ -55,11 +55,11 @@ run() {
 reset yes
 run absent link host && rc=0 || rc=$?
 [ "$rc" = 0 ] || fail "host exited $rc"
-grep -q 'ap_scan=2' "$TMP/run/slotlink-ap.conf" || fail "host AP scans before starting"
-grep -q 'frequency=5745' "$TMP/run/slotlink-ap.conf" || fail "host AP not on 5745"
-grep -q 'mode=2' "$TMP/run/slotlink-ap.conf" || fail "host config is not an AP"
+grep -q 'ap_scan=2' "$TMP/run/connector-link-ap.conf" || fail "host AP scans before starting"
+grep -q 'frequency=5745' "$TMP/run/connector-link-ap.conf" || fail "host AP not on 5745"
+grep -q 'mode=2' "$TMP/run/connector-link-ap.conf" || fail "host config is not an AP"
 grep -q 'addr add 10.42.0.1/24 dev wlan1' "$TMP/ip.log" || fail "host not addressed"
-[ -f "$TMP/run/slotlink.session" ] || fail "host left no session mark"
+[ -f "$TMP/run/connector-link.session" ] || fail "host left no session mark"
 
 reset yes
 export FAKE_STATE=SCANNING
@@ -71,7 +71,7 @@ grep -q 'addr add' "$TMP/ip.log" 2>/dev/null && fail "dead AP was addressed"
 reset yes
 run absent link join && rc=0 || rc=$?
 [ "$rc" = 0 ] || fail "join exited $rc"
-grep -q 'scan_freq=5745' "$TMP/run/slotlink-sta.conf" || fail "join not pinned"
+grep -q 'scan_freq=5745' "$TMP/run/connector-link-sta.conf" || fail "join not pinned"
 grep -q 'addr add 10.42.0.2/24 dev wlan0' "$TMP/ip.log" || fail "join not addressed"
 
 reset yes
@@ -85,7 +85,7 @@ reset yes
 run absent link join >/dev/null
 run absent link down && rc=0 || rc=$?
 [ "$rc" = 0 ] || fail "down exited $rc"
-for f in slotlink-ap.conf slotlink-sta.conf slotlink.session; do
+for f in connector-link-ap.conf connector-link-sta.conf connector-link.session; do
 	[ -e "$TMP/run/$f" ] && fail "down left $f"
 done
 
@@ -111,8 +111,8 @@ run absent link sideways 2>/dev/null && rc=0 || rc=$?
 [ "$rc" = 2 ] || fail "bad verb exited $rc, want 2"
 
 if [ "$FAILS" -eq 0 ]; then
-	echo "slotlink: all passed"
+	echo "connector-link: all passed"
 else
-	echo "slotlink: $FAILS failed"
+	echo "connector-link: $FAILS failed"
 	exit 1
 fi

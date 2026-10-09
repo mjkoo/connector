@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::Instant;
 
-pub const TRACE_VAR: &str = "SLOT_TRACE_LATENCY";
+pub const TRACE_VAR: &str = "CONNECTOR_TRACE_LATENCY";
 pub const FLAG_FILE: &str = "System/trace-latency.on";
 
 static READ: AtomicU64 = AtomicU64::new(0);
@@ -15,7 +15,7 @@ static BITS: AtomicU16 = AtomicU16::new(0);
 fn on() -> bool {
     static ON: OnceLock<bool> = OnceLock::new();
     *ON.get_or_init(|| {
-        let card = std::env::var_os("SLOT_ROOT").unwrap_or_else(|| "/mnt/sdcard".into());
+        let card = std::env::var_os("CONNECTOR_ROOT").unwrap_or_else(|| "/mnt/sdcard".into());
         std::env::var_os(TRACE_VAR).is_some_and(|v| v != "0")
             || std::path::Path::new(&card).join(FLAG_FILE).is_file()
     })
@@ -76,7 +76,7 @@ pub fn swapped(swap_ms: f64) {
     BITS.store(0, Ordering::Release);
     let ms = |from: u64, to: u64| to.saturating_sub(from) as f64 / 1e6;
     eprintln!(
-        "slot: latency: read>pad {:.1} pad>emu {:.1} emu>pub {:.1} pub>take {:.1} take>swapped {:.1} (swap {:.1}) total {:.1} ms",
+        "connector: latency: read>pad {:.1} pad>emu {:.1} emu>pub {:.1} pub>take {:.1} take>swapped {:.1} (swap {:.1}) total {:.1} ms",
         ms(r, a),
         ms(a, e),
         ms(e, p),

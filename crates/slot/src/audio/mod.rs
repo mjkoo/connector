@@ -21,7 +21,7 @@ pub const GBA_HZ: u32 = 32_768;
 
 #[cfg(feature = "host")]
 pub fn open_sink() -> Box<dyn AudioSink> {
-    if std::env::var_os("SLOT_SILENT").is_some() {
+    if std::env::var_os("CONNECTOR_SILENT").is_some() {
         return Box::new(StubSink::draining());
     }
     Box::new(HostAudio::new())

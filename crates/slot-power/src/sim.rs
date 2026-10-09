@@ -104,7 +104,7 @@ fn system_secs() -> i64 {
 }
 
 fn root_from_env() -> PathBuf {
-    std::env::var_os("SLOT_ROOT")
+    std::env::var_os("CONNECTOR_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("sdcard"))
 }

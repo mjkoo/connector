@@ -91,7 +91,7 @@ fn queue() -> &'static Sender<RadioJob> {
 #[cfg(any(feature = "device", test))]
 fn link_command(root: &Path, verb: &str) -> Command {
     let mut cmd = Command::new("/bin/sh");
-    cmd.arg(root.join("System/slotlink.sh"))
+    cmd.arg(root.join("System/connector-link.sh"))
         .arg("link")
         .arg(verb);
     cmd
@@ -99,7 +99,7 @@ fn link_command(root: &Path, verb: &str) -> Command {
 
 #[cfg(feature = "device")]
 fn link(verb: &str) -> Command {
-    let root = std::env::var_os("SLOT_ROOT").unwrap_or_else(|| "/mnt/sdcard".into());
+    let root = std::env::var_os("CONNECTOR_ROOT").unwrap_or_else(|| "/mnt/sdcard".into());
     link_command(Path::new(&root), verb)
 }
 
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn a_link_runs_the_cards_script_through_sh() {
         let d = tempfile::tempdir().unwrap();
-        let script = d.path().join("System/slotlink.sh");
+        let script = d.path().join("System/connector-link.sh");
         assert_eq!(
             argv(&link_command(d.path(), "host")),
             ["/bin/sh", script.to_str().unwrap(), "link", "host"]

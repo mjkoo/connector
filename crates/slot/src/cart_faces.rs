@@ -41,7 +41,7 @@ impl CartFaces {
                 .name(format!("slot-carts-{n}"))
                 .spawn(move || work(&queue, &outbox, &root));
             if let Err(e) = spawned {
-                eprintln!("slot: cart faces: worker thread failed to start: {e}");
+                eprintln!("connector: cart faces: worker thread failed to start: {e}");
             }
         }
         CartFaces {

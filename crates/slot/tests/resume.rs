@@ -293,7 +293,7 @@ fn seated_with_named_core(
             ..Default::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let mut a = App::boot(root);
     a.set_snapshot(snapshot);
     a.set_named_core(named);

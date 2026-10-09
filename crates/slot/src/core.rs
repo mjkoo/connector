@@ -5,7 +5,7 @@ use slot_store::{Core, GbPalette, Platform};
 
 use crate::root;
 
-const CORE_ENV: &str = "SLOT_CORE";
+const CORE_ENV: &str = "CONNECTOR_CORE";
 
 pub fn dylib_name(core: Core) -> String {
     format!(
@@ -110,10 +110,10 @@ fn open_named(
                 if let Some(player) = link {
                     apply_link_options(&mut opened, core, player);
                 }
-                eprintln!("slot: core {}", path.display());
+                eprintln!("connector: core {}", path.display());
                 return Some(Box::new(opened));
             }
-            Err(e) => eprintln!("slot: {}: {e}", path.display()),
+            Err(e) => eprintln!("connector: {}: {e}", path.display()),
         }
     }
     None
@@ -138,7 +138,7 @@ pub fn dmg_only(rom: &Path) -> bool {
 
 fn report_missing(core: Core, paths: &[PathBuf]) {
     eprintln!(
-        "slot: no {} core found, running the mock test pattern instead. Looked in: {}",
+        "connector: no {} core found, running the mock test pattern instead. Looked in: {}",
         core.as_str(),
         paths
             .iter()
@@ -164,7 +164,7 @@ pub fn apply_link_options(core: &mut LibretroCore, which: Core, player: u8) {
     }
     core.set_option("mgba_link", "on");
     core.set_option("mgba_link_player", &player.to_string());
-    eprintln!("slot: core: link mode on, player {player}");
+    eprintln!("connector: core: link mode on, player {player}");
 }
 
 pub fn apply_core_options(

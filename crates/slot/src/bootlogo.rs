@@ -171,27 +171,31 @@ pub fn refresh(card: &Path) {
         return;
     };
     if decode(&logo).is_none() {
-        eprintln!("slot: bootlogo: {CARD_LOGO} is not a 24-bit bmp, leaving the boot logo alone");
+        eprintln!(
+            "connector: bootlogo: {CARD_LOGO} is not a 24-bit bmp, leaving the boot logo alone"
+        );
         return;
     }
     let Some(device) = partition(PARTITION) else {
-        eprintln!("slot: bootlogo: no {PARTITION} partition");
+        eprintln!("connector: bootlogo: no {PARTITION} partition");
         return;
     };
     if fs::create_dir_all(MOUNT).is_err()
         || !run("mount", &["-t", "vfat", "-o", "rw,noatime", &device, MOUNT])
     {
-        eprintln!("slot: bootlogo: could not mount {device}");
+        eprintln!("connector: bootlogo: could not mount {device}");
         return;
     }
     match install(&logo, Path::new(MOUNT)) {
-        Ok(Outcome::Installed) => eprintln!("slot: bootlogo: installed"),
-        Ok(Outcome::Invalid) => eprintln!("slot: bootlogo: no logo fits this panel, left alone"),
+        Ok(Outcome::Installed) => eprintln!("connector: bootlogo: installed"),
+        Ok(Outcome::Invalid) => {
+            eprintln!("connector: bootlogo: no logo fits this panel, left alone")
+        }
         Ok(_) => {}
-        Err(e) => eprintln!("slot: bootlogo: {e}"),
+        Err(e) => eprintln!("connector: bootlogo: {e}"),
     }
     if !run("umount", &[MOUNT]) {
-        eprintln!("slot: bootlogo: could not unmount {MOUNT}");
+        eprintln!("connector: bootlogo: could not unmount {MOUNT}");
     }
 }
 

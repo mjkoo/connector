@@ -106,7 +106,7 @@ impl Alsa {
                 last = AudioError::Config(format!("{name}: {}", self.message(err)));
                 continue;
             }
-            eprintln!("slot: audio {name} at {rate} Hz");
+            eprintln!("connector: audio {name} at {rate} Hz");
             return Ok(pcm);
         }
         Err(last)
@@ -219,12 +219,12 @@ impl Playback {
             match (self.pcm, hold) {
                 (Some(_), false) => {
                     self.release();
-                    eprintln!("slot: audio released after silence");
+                    eprintln!("connector: audio released after silence");
                 }
                 (None, true) => match self.alsa.open_pcm(self.rate) {
                     Ok(pcm) => self.pcm = Some(pcm),
                     Err(e) => {
-                        eprintln!("slot: audio: {e}");
+                        eprintln!("connector: audio: {e}");
                         return;
                     }
                 },
@@ -255,7 +255,7 @@ impl Playback {
             if frames < 0 {
                 let err = unsafe { (self.alsa.recover)(pcm, frames as c_int, 1) };
                 if err < 0 {
-                    eprintln!("slot: audio: {}", self.alsa.message(err));
+                    eprintln!("connector: audio: {}", self.alsa.message(err));
                     return false;
                 }
                 continue;

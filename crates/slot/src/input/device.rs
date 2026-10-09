@@ -38,7 +38,7 @@ impl DeviceInput {
         let pending: Arc<Mutex<Vec<RawEvent>>> = Arc::new(Mutex::new(Vec::new()));
         for node in pick_devices(dev, sys) {
             eprintln!(
-                "slot: input {} ({})",
+                "connector: input {} ({})",
                 node.display(),
                 device_name(sys, &node)
             );
@@ -50,7 +50,7 @@ impl DeviceInput {
                 .name(format!("slot-input-{name}"))
                 .spawn(move || read_node(&node, &queue, trace.as_deref()));
             if let Err(e) = spawned {
-                eprintln!("slot: input {name}: {e}");
+                eprintln!("connector: input {name}: {e}");
             }
         }
         DeviceInput {
@@ -78,10 +78,10 @@ fn quicken_poll(sys: &Path, node: &Path) {
     if now > POLL_MS {
         match std::fs::write(&attr, POLL_MS.to_string()) {
             Ok(()) => eprintln!(
-                "slot: input {}: poll {now} ms -> {POLL_MS} ms",
+                "connector: input {}: poll {now} ms -> {POLL_MS} ms",
                 node.display()
             ),
-            Err(e) => eprintln!("slot: input {}: poll: {e}", node.display()),
+            Err(e) => eprintln!("connector: input {}: poll: {e}", node.display()),
         }
     }
 }
@@ -95,7 +95,7 @@ fn read_node(node: &Path, queue: &Mutex<Vec<RawEvent>>, trace: Option<&Trace>) {
     let mut file = match File::open(node) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("slot: input {}: {e}", node.display());
+            eprintln!("connector: input {}: {e}", node.display());
             return;
         }
     };
@@ -106,7 +106,7 @@ fn read_node(node: &Path, queue: &Mutex<Vec<RawEvent>>, trace: Option<&Trace>) {
             Ok(n) => n,
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e) => {
-                eprintln!("slot: input {}: {e}", node.display());
+                eprintln!("connector: input {}: {e}", node.display());
                 return;
             }
         };
@@ -144,7 +144,7 @@ impl Trace {
         let mut file = match File::create(&path) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("slot: {}: {e}", path.display());
+                eprintln!("connector: {}: {e}", path.display());
                 return None;
             }
         };

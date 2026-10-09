@@ -102,7 +102,7 @@ impl Frontend {
         let mut session = Session::boot(platform.root().to_path_buf());
         let stale = label_cache::stale(platform.root(), session.app().carts());
         let rebuild = (!stale.is_empty()).then(|| {
-            eprintln!("slot: label cache: {} new labels", stale.len());
+            eprintln!("connector: label cache: {} new labels", stale.len());
             Rebuild::start(platform.root(), stale)
         });
         session
@@ -327,7 +327,7 @@ impl Frontend {
         };
         if let Some(rgba) = bezel_face(&path, panel.0, panel.1) {
             compositor.set_bezel(panel.0, panel.1, &rgba);
-            eprintln!("slot: bezel {}", path.display());
+            eprintln!("connector: bezel {}", path.display());
         }
     }
 

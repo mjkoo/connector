@@ -177,9 +177,9 @@ impl DevicePlatform {
 
 fn ran(what: &str, result: std::io::Result<std::process::ExitStatus>) {
     match result {
-        Ok(status) if status.success() => eprintln!("slot: {what} ok"),
-        Ok(status) => eprintln!("slot: {what} {status}"),
-        Err(e) => eprintln!("slot: {what}: {e}"),
+        Ok(status) if status.success() => eprintln!("connector: {what} ok"),
+        Ok(status) => eprintln!("connector: {what} {status}"),
+        Err(e) => eprintln!("connector: {what}: {e}"),
     }
 }
 
@@ -292,10 +292,13 @@ impl Motor {
             .read(true)
             .write(true)
             .open(Path::new(DEV_INPUT).join(&name))
-            .map_err(|e| eprintln!("slot: rumble {name}: {e}"))
+            .map_err(|e| eprintln!("connector: rumble {name}: {e}"))
             .ok()?;
         let Some(id) = upload(&node, -1) else {
-            eprintln!("slot: rumble {name}: {}", std::io::Error::last_os_error());
+            eprintln!(
+                "connector: rumble {name}: {}",
+                std::io::Error::last_os_error()
+            );
             return None;
         };
         Some(Motor {
@@ -311,7 +314,7 @@ impl Motor {
             match upload(&self.node, self.id).or_else(|| upload(&self.node, -1)) {
                 Some(id) => self.id = id,
                 None => eprintln!(
-                    "slot: rumble {}: {}",
+                    "connector: rumble {}: {}",
                     self.name,
                     std::io::Error::last_os_error()
                 ),
@@ -329,7 +332,7 @@ impl Motor {
         };
         match (&self.node).write_all(bytes) {
             Ok(()) => self.running = on,
-            Err(e) => eprintln!("slot: rumble: {e}"),
+            Err(e) => eprintln!("connector: rumble: {e}"),
         }
     }
 }
@@ -393,7 +396,7 @@ impl Platform for DevicePlatform {
         let value = self.max_brightness * step / TOP_STEP;
         let write = |file: PathBuf, body: String| {
             if let Err(e) = fs::write(&file, body) {
-                eprintln!("slot: {}: {e}", file.display());
+                eprintln!("connector: {}: {e}", file.display());
             }
         };
         match backlight {
@@ -446,7 +449,7 @@ impl Platform for DevicePlatform {
     }
 
     fn restart(&mut self) -> ! {
-        self.breadcrumb("restart: reached slot, about to sync");
+        self.breadcrumb("restart: reached connector, about to sync");
         let _ = Command::new("sync").status();
         self.breadcrumb("restart: sync returned, about to signal init");
         let _ = Command::new("reboot").status();
@@ -455,7 +458,7 @@ impl Platform for DevicePlatform {
     }
 
     fn poweroff(&mut self) -> ! {
-        self.breadcrumb("poweroff: reached slot, about to sync");
+        self.breadcrumb("poweroff: reached connector, about to sync");
         let _ = Command::new("sync").status();
         self.breadcrumb("poweroff: sync returned, about to signal init");
         let _ = Command::new("poweroff").status();
@@ -501,7 +504,7 @@ impl Platform for DevicePlatform {
         match fs::write(&gadget, &name) {
             Ok(()) => true,
             Err(e) => {
-                eprintln!("slot: adb {}: {e}", gadget.display());
+                eprintln!("connector: adb {}: {e}", gadget.display());
                 false
             }
         }

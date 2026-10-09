@@ -191,29 +191,6 @@ a.tab{text-decoration:none}
   letter-spacing:-.045em;
 }
 .wordmark-row{display:flex;align-items:center;gap:clamp(10px,1.4vw,16px)}
-.say{
-  flex:none;
-  display:grid;
-  place-items:center;
-  width:clamp(36px,4.4vw,44px);
-  height:clamp(36px,4.4vw,44px);
-  margin-top:.12em;
-  padding:0;
-  border:1px solid var(--rule);
-  border-radius:50%;
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-  transition:color .15s,border-color .15s,background .15s;
-}
-.say svg{width:58%;height:58%;overflow:visible}
-.say-body{fill:currentColor}
-.say-wave{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-.say:hover,.say.is-playing{color:var(--ink);border-color:var(--edge)}
-.say:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-.say.is-playing .say-wave{animation:say-pulse .55s ease-in-out infinite alternate}
-.say.is-playing .say-wave-2{animation-delay:.18s}
-@keyframes say-pulse{from{opacity:.35}to{opacity:1}}
 .tagline{
   font-size:clamp(19px,2.4vw,23px);
   color:var(--ink);
@@ -557,7 +534,6 @@ kbd{
   .hero-copy{width:100%;text-align:center}
   .wordmark-row{display:grid;grid-template-columns:1fr auto 1fr}
   .wordmark-row .wordmark{grid-column:2}
-  .wordmark-row .say{grid-column:3;justify-self:start}
   .actions{justify-content:center}
   .hero-device{--dw:min(168px,38vw,24vh);align-self:center;order:-1}
   .tagline,.hero-copy p.sub{max-width:none}

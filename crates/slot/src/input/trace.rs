@@ -4,7 +4,7 @@ use super::evdev::{
     code_to_btn, device_name, pick_devices, Ev, ABS_HAT0X, ABS_HAT0Y, EV_ABS, EV_KEY, EV_SW, SW_LID,
 };
 
-pub const TRACE_VAR: &str = "SLOT_TRACE_INPUT";
+pub const TRACE_VAR: &str = "CONNECTOR_TRACE_INPUT";
 
 pub const TRACE_FILE: &str = "input-trace.log";
 

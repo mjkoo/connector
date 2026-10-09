@@ -465,7 +465,7 @@ impl Platform for StubPlatform {
 pub fn clocked(root: &Path) {
     let mut s = slot_store::read_slot_state(root);
     s.clock_set = true;
-    write_slot_state(root, &s).expect("write slot.state");
+    write_slot_state(root, &s).expect("write connector.state");
 }
 
 pub fn boot(root: &Path) -> App {
@@ -553,7 +553,7 @@ pub fn app_playing_with(root: &Path, stem: &str, snapshot: Box<dyn Snapshot>) ->
 }
 
 fn seated(root: &Path, snapshot: Box<dyn Snapshot>, state: SlotState) -> App {
-    write_slot_state(root, &state).expect("write slot.state");
+    write_slot_state(root, &state).expect("write connector.state");
     let mut a = App::boot(root);
     a.set_snapshot(snapshot);
     a.on_core_ready();

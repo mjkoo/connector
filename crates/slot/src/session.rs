@@ -35,7 +35,7 @@ impl Session {
     pub fn boot(root: PathBuf) -> Self {
         let mut sink: Box<dyn AudioSink> = open_sink();
         if let Err(e) = sink.open(GBA_HZ) {
-            eprintln!("slot: audio: {e}");
+            eprintln!("connector: audio: {e}");
         }
         Session {
             app: App::boot(&root),
@@ -177,7 +177,7 @@ impl Session {
 
     fn act(&mut self, action: Action) {
         if trace() {
-            eprintln!("slot: {action:?} in {:?}", self.app.phase());
+            eprintln!("connector: {action:?} in {:?}", self.app.phase());
         }
         match action {
             Action::RewindStart => self.rewinding = true,
@@ -219,7 +219,7 @@ impl Session {
                     Some(player) => emu.begin_cable(player, transport),
                     None => emu.begin_link(client_id, transport),
                 },
-                None => eprintln!("slot: link: a transport arrived with no core to run it"),
+                None => eprintln!("connector: link: a transport arrived with no core to run it"),
             }
         }
         if let Some(p) = self.app.take_gb_palette() {
@@ -365,7 +365,7 @@ impl Session {
     }
 
     fn no_core() -> bool {
-        std::env::var_os("SLOT_NO_CORE").is_some_and(|v| v != "0")
+        std::env::var_os("CONNECTOR_NO_CORE").is_some_and(|v| v != "0")
     }
 
     fn sync_core(&mut self) {
@@ -444,7 +444,7 @@ impl Session {
     }
 
     fn reload_for_link(&mut self, stem: &str, serial: &'static str) {
-        eprintln!("slot: link: loading {stem} again with gpsp_serial={serial}");
+        eprintln!("connector: link: loading {stem} again with gpsp_serial={serial}");
         if self.emu.is_some() {
             self.app.flush_resume();
         }
@@ -477,5 +477,5 @@ impl Session {
 
 pub(crate) fn trace() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var_os("SLOT_TRACE").is_some())
+    *ON.get_or_init(|| std::env::var_os("CONNECTOR_TRACE").is_some())
 }

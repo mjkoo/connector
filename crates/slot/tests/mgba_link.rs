@@ -829,8 +829,8 @@ fn mario_kart_super_circuit_is_the_same_race_on_both_devices() {
     let _g = common::core_lock();
     let dylib = common::vendored_core().expect("no vendored mGBA core: run `task core`");
     let rom = PathBuf::from(
-        std::env::var_os("SLOT_MKSC_ROM")
-            .expect("set SLOT_MKSC_ROM to a Mario Kart: Super Circuit ROM"),
+        std::env::var_os("CONNECTOR_MKSC_ROM")
+            .expect("set CONNECTOR_MKSC_ROM to a Mario Kart: Super Circuit ROM"),
     );
 
     let mut hashes = Vec::new();
@@ -865,8 +865,8 @@ fn mario_kart_super_circuit_races_linked_after_a_restore() {
     let _g = common::core_lock();
     let dylib = common::vendored_core().expect("no vendored mGBA core: run `task core`");
     let rom = PathBuf::from(
-        std::env::var_os("SLOT_MKSC_ROM")
-            .expect("set SLOT_MKSC_ROM to a Mario Kart: Super Circuit ROM"),
+        std::env::var_os("CONNECTOR_MKSC_ROM")
+            .expect("set CONNECTOR_MKSC_ROM to a Mario Kart: Super Circuit ROM"),
     );
 
     let raced: Vec<Vec<u8>> = [0u8, 1]

@@ -863,7 +863,7 @@ impl App {
             return;
         };
         if let Err(e) = video_mode::write_video_mode(&root, cart, mode) {
-            eprintln!("slot: video: could not write video_mode.ini: {e}");
+            eprintln!("connector: video: could not write video_mode.ini: {e}");
         }
     }
 
@@ -1816,7 +1816,7 @@ impl App {
             return;
         };
         if let Err(e) = write_slot_state(root, &self.state) {
-            eprintln!("slot: slot.state: {e}");
+            eprintln!("connector: connector.state: {e}");
         }
     }
 
@@ -1851,12 +1851,12 @@ impl App {
         let ring = StateRing::new(root, self.platform, self.core, stem);
         match ring.retire_resume(&format_stamp(self.wall_secs())) {
             Ok(Some(to)) => eprintln!(
-                "slot: resume: {} refused this state, moved it to {}",
+                "connector: resume: {} refused this state, moved it to {}",
                 self.core.as_str(),
                 to.display()
             ),
             Ok(None) => {}
-            Err(e) => eprintln!("slot: resume: could not move the refused state aside: {e}"),
+            Err(e) => eprintln!("connector: resume: could not move the refused state aside: {e}"),
         }
     }
 
@@ -2455,7 +2455,7 @@ impl App {
             return;
         };
         let Some(state) = snapshot.state() else {
-            eprintln!("slot: eject: the core gave up no state");
+            eprintln!("connector: eject: the core gave up no state");
             return;
         };
         let (state, sav) = trusted_write(snapshot.as_ref(), state, "eject");
@@ -2472,7 +2472,7 @@ impl App {
                 self.state.cart = None;
                 self.state.cart_platform = None;
             }
-            Err(e) => eprintln!("slot: eject: {e}"),
+            Err(e) => eprintln!("connector: eject: {e}"),
         }
     }
 
@@ -2916,7 +2916,7 @@ impl App {
             return;
         };
         if let Err(e) = slot_store::write_selected_core(&root, &cart.stem, core) {
-            eprintln!("slot: core: could not write selected_core.ini: {e}");
+            eprintln!("connector: core: could not write selected_core.ini: {e}");
         }
     }
 
@@ -2968,7 +2968,7 @@ impl App {
             return;
         };
         let Some(state) = snapshot.state() else {
-            eprintln!("slot: autosave: the core gave up no state");
+            eprintln!("connector: autosave: the core gave up no state");
             return;
         };
         let (state, sav) = trusted_write(snapshot.as_ref(), state, "autosave");
@@ -2983,7 +2983,7 @@ impl App {
                 state.as_deref(),
                 sav.as_deref(),
             ) {
-                eprintln!("slot: autosave: {e}");
+                eprintln!("connector: autosave: {e}");
             }
         };
         match std::thread::Builder::new()
@@ -2991,7 +2991,7 @@ impl App {
             .spawn(write)
         {
             Ok(h) => self.pending_save = Some(h),
-            Err(e) => eprintln!("slot: autosave: no writer thread: {e}"),
+            Err(e) => eprintln!("connector: autosave: no writer thread: {e}"),
         }
     }
 
@@ -3003,7 +3003,7 @@ impl App {
             return;
         };
         let Some(state) = snapshot.state() else {
-            eprintln!("slot: flush: the core gave up no state");
+            eprintln!("connector: flush: the core gave up no state");
             return;
         };
         let (state, sav) = trusted_write(snapshot.as_ref(), state, "flush");
@@ -3015,7 +3015,7 @@ impl App {
             state.as_deref(),
             sav.as_deref(),
         ) {
-            eprintln!("slot: flush: {e}");
+            eprintln!("connector: flush: {e}");
         }
     }
 
@@ -3087,7 +3087,7 @@ impl App {
             return;
         };
         if let Err(e) = ring.remove(&stamp) {
-            eprintln!("slot: delete: {e}");
+            eprintln!("connector: delete: {e}");
             return;
         }
         if self.undo_targets(&stamp) {
@@ -3127,7 +3127,7 @@ impl App {
         let bytes = match std::fs::read(state) {
             Ok(bytes) => bytes,
             Err(e) => {
-                eprintln!("slot: load: {e}");
+                eprintln!("connector: load: {e}");
                 return false;
             }
         };
@@ -3145,18 +3145,20 @@ impl App {
             return;
         };
         if !snapshot.resume_trusted() {
-            eprintln!("slot: save: the core refused the resume it was given, not pushing a state");
+            eprintln!(
+                "connector: save: the core refused the resume it was given, not pushing a state"
+            );
             return self.refuse();
         }
         let Some(state) = snapshot.state() else {
-            eprintln!("slot: save: the core gave up no state");
+            eprintln!("connector: save: the core gave up no state");
             return;
         };
         let thumb = snapshot.thumb().unwrap_or_default();
         let stamp = free_stamp(&ring, self.wall_secs());
         let evicted = doomed(&ring);
         if let Err(e) = ring.push(&state, &thumb, &stamp) {
-            eprintln!("slot: save: {e}");
+            eprintln!("connector: save: {e}");
             return;
         }
         self.hud.toast(Toast::StateSaved, self.now());
@@ -3236,14 +3238,14 @@ impl App {
             return;
         };
         if let Err(e) = ring.remove(stamp) {
-            eprintln!("slot: undo: {e}");
+            eprintln!("connector: undo: {e}");
             return;
         }
         let Some((stamp, state, thumb)) = evicted else {
             return;
         };
         if let Err(e) = ring.push(&state, &thumb, &stamp) {
-            eprintln!("slot: undo: {e}");
+            eprintln!("connector: undo: {e}");
         }
     }
 
@@ -3289,7 +3291,7 @@ fn trusted_write(
         Some(state)
     } else {
         eprintln!(
-            "slot: {verb}: the core refused the resume it was given, not overwriting the saved one"
+            "connector: {verb}: the core refused the resume it was given, not overwriting the saved one"
         );
         None
     };
@@ -3299,7 +3301,7 @@ fn trusted_write(
     } else {
         if sav.is_some() {
             eprintln!(
-                "slot: {verb}: the core refused the save ram it was given, not overwriting the saved one"
+                "connector: {verb}: the core refused the save ram it was given, not overwriting the saved one"
             );
         }
         None

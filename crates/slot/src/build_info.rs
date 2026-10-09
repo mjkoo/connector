@@ -10,9 +10,9 @@ impl Build {
     pub fn current() -> Build {
         Build {
             version: env!("CARGO_PKG_VERSION"),
-            hash: env!("SLOT_GIT_HASH"),
-            dirty: env!("SLOT_GIT_DIRTY") == "1",
-            date: env!("SLOT_BUILD_DATE"),
+            hash: env!("CONNECTOR_GIT_HASH"),
+            dirty: env!("CONNECTOR_GIT_DIRTY") == "1",
+            date: env!("CONNECTOR_BUILD_DATE"),
         }
     }
 

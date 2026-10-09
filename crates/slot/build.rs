@@ -35,7 +35,7 @@ fn main() {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| "unknown".into());
 
-    println!("cargo:rustc-env=SLOT_GIT_HASH={hash}");
-    println!("cargo:rustc-env=SLOT_GIT_DIRTY={}", u8::from(dirty));
-    println!("cargo:rustc-env=SLOT_BUILD_DATE={date}");
+    println!("cargo:rustc-env=CONNECTOR_GIT_HASH={hash}");
+    println!("cargo:rustc-env=CONNECTOR_GIT_DIRTY={}", u8::from(dirty));
+    println!("cargo:rustc-env=CONNECTOR_BUILD_DATE={date}");
 }

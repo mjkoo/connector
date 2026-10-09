@@ -51,6 +51,8 @@ fn the_compliance_block_is_the_credits() {
         "NERD",
         "LCD3X",
         "CLAUDE",
+        "SLOT. BY BRANDON T.",
+        "KOWALSKI",
     ] {
         assert!(all.contains(owed), "the credits do not mention {owed}");
     }

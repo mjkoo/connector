@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "connector"
+path = "src/main.rs"
+
 [features]
 default = ["host"]
 host = ["dep:winit", "dep:cpal", "dep:gilrs", "slot-gfx/host"]

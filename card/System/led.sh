@@ -2,7 +2,7 @@
 set -u
 
 PSY="${AGS_PSY:-/sys/class/power_supply/axp2202-battery}"
-STATE="${AGS_LED_STATE:-/run/slot-led.state}"
+STATE="${AGS_LED_STATE:-/run/connector-led.state}"
 INTERVAL="${AGS_LED_INTERVAL:-30}"
 
 LOW="${AGS_LED_LOW:-15}"

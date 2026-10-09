@@ -33,7 +33,7 @@ fn a_build_with_no_git_still_has_a_serial() {
         ..sample()
     };
     assert!(!unknown.serial().is_empty());
-    let payload = format!("*SLOT-{}-{}*", unknown.serial(), unknown.dirty_digit());
+    let payload = format!("*CONNECTOR-{}-{}*", unknown.serial(), unknown.dirty_digit());
     assert!(slot_ui::code39(&payload).is_some());
 }
 

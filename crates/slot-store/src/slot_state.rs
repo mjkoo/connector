@@ -115,7 +115,7 @@ impl Default for SlotState {
 }
 
 fn state_path(root: &Path) -> PathBuf {
-    root.join("Config").join("slot.state")
+    root.join("Config").join("connector.state")
 }
 
 pub fn read_slot_state(root: &Path) -> SlotState {

@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>slot.</title>
-<meta name="description" content="A bespoke, Game Boy-centric frontend for the Anbernic RG SP.">
-<meta property="og:title" content="slot.">
-<meta property="og:description" content="A bespoke, Game Boy-centric frontend for the Anbernic RG SP.">
+<title>connector</title>
+<meta name="description" content="A Game Boy-centric frontend for the Anbernic RG SP, built for link play. A derivative of slot. by Brandon T. Kowalski.">
+<meta property="og:title" content="connector">
+<meta property="og:description" content="A Game Boy-centric frontend for the Anbernic RG SP, built for link play. A derivative of slot. by Brandon T. Kowalski.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
 <body>
 
 <header class="mast">
-  <a class="mast-mark" href="/">slot.</a>
+  <a class="mast-mark" href="./">connector</a>
 
   <button class="menu-btn" type="button" id="menu-btn" aria-expanded="false"
           aria-controls="section-tabs" aria-label="Sections">
@@ -29,29 +29,22 @@
     <button class="tab" role="tab" id="t-questions" aria-controls="questions" aria-selected="false" tabindex="-1">Questions</button>
     <button class="tab" role="tab" id="t-credits" aria-controls="credits" aria-selected="false" tabindex="-1">Credits</button>
     <button class="tab" role="tab" id="t-disclosure" aria-controls="disclosure" aria-selected="false" tabindex="-1">AI</button>
-    <a class="tab" href="https://studio.slot-cfw.fyi">Studio</a>
+    <a class="tab" href="https://studio.slot-cfw.fyi" title="Cart Studio, by the slot. project">Studio</a>
   </nav>
 </header>
 
 <main>
 
-<section class="panel hero" id="hero" aria-label="slot.">
+<section class="panel hero" id="hero" aria-label="connector">
   <div class="hero-copy">
     <div class="wordmark-row">
-      <h1 class="wordmark">slot.</h1>
-      <button class="say" type="button" aria-label="Hear how slot is pronounced" title="Pronunciation">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path class="say-body" d="M3 9.5h4.2L12.5 5v14l-5.3-4.5H3z"/>
-          <path class="say-wave say-wave-1" d="M15.5 9.2a4 4 0 0 1 0 5.6"/>
-          <path class="say-wave say-wave-2" d="M18.3 6.4a8 8 0 0 1 0 11.2"/>
-        </svg>
-      </button>
-      <audio id="say-slot" src="media/slot.mp3" preload="none"></audio>
+      <h1 class="wordmark">connector</h1>
     </div>
-    <p class="tagline">A bespoke, Game Boy-centric frontend for the Anbernic RG SP.</p>
+    <p class="tagline">A Game Boy-centric frontend for the Anbernic RG SP, built for link play.</p>
+    <p class="sub">A derivative of <a href="https://github.com/BrandonKowalski/slot">slot.</a> by Brandon T. Kowalski. Not affiliated with or endorsed by the slot. project. <a href="#credits">Credits</a>.</p>
     <div class="actions">
-      <a class="btn" href="https://github.com/BrandonKowalski/slot/releases/latest">Download</a>
-      <a class="btn ghost" href="https://studio.slot-cfw.fyi" target="_blank">Cart Studio</a>
+      <a class="btn" href="https://github.com/mjkoo/slot/releases/latest">Download</a>
+      <a class="btn ghost" href="https://studio.slot-cfw.fyi" target="_blank" title="By the slot. project">Cart Studio</a>
     </div>
   </div>
 
@@ -59,7 +52,7 @@
     <div class="device pose-hero">
       <div class="dv-lid">
         <div class="dv-front">
-          <svg viewBox="0 0 820 725" role="img" aria-label="An Anbernic RG SP running slot.">
+          <svg viewBox="0 0 820 725" role="img" aria-label="An Anbernic RG SP running connector.">
             <use href="#lidArt"/>
           </svg>
           <video class="screen-box hero-screen" width="720" height="480" muted playsinline loop
@@ -110,7 +103,7 @@
         </li>
         <li>
           <h3>Download the latest release</h3>
-          <p>Go fetch the <a href="https://github.com/BrandonKowalski/slot/releases/latest">latest slot release</a> from GitHub.</p>
+          <p>Go fetch the <a href="https://github.com/mjkoo/slot/releases/latest">latest connector release</a> from GitHub.</p>
         </li>
         <li>
           <h3>Copy it onto your SD Card</h3>
@@ -122,12 +115,12 @@
              <code>Labels/</code>.</p>
           <aside class="admonition" role="note">
             <p class="admonition-title">ROMs must be unzipped!</p>
-            <p>slot does not read <code>.zip</code> or <code>.7z</code> files.</p>
+            <p>connector does not read <code>.zip</code> or <code>.7z</code> files.</p>
           </aside>
         </li>
         <li>
           <h3>Re-insert the card into <code>SD1</code> and boot!</h3>
-          <p>I hope you enjoy using slot!</p>
+          <p>Enjoy!</p>
         </li>
       </ol>
     </div>
@@ -143,7 +136,7 @@
         </li>
         <li>
           <h3>Download the latest release</h3>
-          <p>Go fetch the <a href="https://github.com/BrandonKowalski/slot/releases/latest">latest slot release</a> from GitHub.</p>
+          <p>Go fetch the <a href="https://github.com/mjkoo/slot/releases/latest">latest connector release</a> from GitHub.</p>
         </li>
         <li>
           <h3>Copy it onto SD2</h3>
@@ -156,12 +149,12 @@
              <code>Labels/</code>.</p>
           <aside class="admonition" role="note">
             <p class="admonition-title">ROMs must be unzipped!</p>
-            <p>slot does not read <code>.zip</code> or <code>.7z</code> files.</p>
+            <p>connector does not read <code>.zip</code> or <code>.7z</code> files.</p>
           </aside>
         </li>
         <li>
           <h3>Put the second card into <code>SD2</code> and boot!</h3>
-          <p>I hope you enjoy using slot!</p>
+          <p>Enjoy!</p>
         </li>
       </ol>
     </div>
@@ -170,19 +163,18 @@
       <aside class="admonition" role="note">
         <p class="admonition-title">Updating from a version before 1.4.0?</p>
         <p>Older versions kept settings in <code>System/</code>, so deleting it wipes them.</p>
-        <p>This time, copy the new <code>System/</code> over the old one instead of deleting it. slot will move your settings into a new <code>Config/</code> folder, so future updates can delete <code>System/</code> as normal.</p>
+        <p>This time, copy the new <code>System/</code> over the old one instead of deleting it. connector will move your settings into a new <code>Config/</code> folder, so future updates can delete <code>System/</code> as normal.</p>
         <p>Your games, saves and save states aren't affected.</p>
-        <p>Sorry for the hassle! slot started as a throwaway project for my own SP, and I never expected it to need an update procedure.</p>
       </aside>
 
       <ol class="install-steps">
         <li>
           <h3>Download the latest release</h3>
-          <p>Go fetch the <a href="https://github.com/BrandonKowalski/slot/releases/latest">latest slot release</a> from GitHub and unzip it.</p>
+          <p>Go fetch the <a href="https://github.com/mjkoo/slot/releases/latest">latest connector release</a> from GitHub and unzip it.</p>
         </li>
         <li>
           <h3>Replace the <code>System/</code> folder</h3>
-          <p>Connect the card that holds slot to your computer. That is the card in <code>SD1</code> if you use a single card, or the card in <code>SD2</code> if you use two.</p>
+          <p>Connect the card that holds connector to your computer. That is the card in <code>SD1</code> if you use a single card, or the card in <code>SD2</code> if you use two.</p>
           <p>Delete the <code>System/</code> folder on the card and copy the new <code>System/</code> folder from the release in its place.
              Your games, saves, save states, labels and wallpapers all live outside <code>System/</code> and are left alone.</p>
         </li>
@@ -239,7 +231,7 @@
       </li>
       <li class="step" id="eject" data-clip="eject.mp4">
         <h3>Ejecting a Game</h3>
-        <p>Hold <kbd>MENU</kbd> to eject the cart.<br>On exit, slot creates a save state.</p>
+        <p>Hold <kbd>MENU</kbd> to eject the cart.<br>On exit, connector creates a save state.</p>
       </li>
       <li class="step" id="save-states" data-clip="states.mp4">
         <h3>Save States</h3>
@@ -280,7 +272,7 @@
       <li class="step" id="lid-detection" data-still="carousel.webp" data-lid="shut">
         <h3>Lid Detection</h3>
         <p>Closing the lid writes a save state and turns off the display. Open it again and you're back in the game.</p><br>
-        <p>Leave it shut for three minutes and slot powers off. It will resume with that save state on the next boot.</p>
+        <p>Leave it shut for three minutes and connector powers off. It will resume with that save state on the next boot.</p>
       </li>
   </ol>
   <div class="stepper">
@@ -367,7 +359,7 @@
         </div>
         <div class="key">
           <dt><kbd>SELECT</kbd> + <kbd>MENU</kbd></dt>
-          <dd>Link with another device running <code>slot</code>.</dd>
+          <dd>Link with another device running <code>connector</code> (or slot.).</dd>
         </div>
         <div class="key">
           <dt><kbd>SELECT</kbd> + <kbd>R1</kbd></dt>
@@ -457,7 +449,7 @@
     <div class="subpanel" id="faq" role="tabpanel" aria-labelledby="t-faq">
       <dl>
         <div class="qa">
-          <dt>Which devices does slot run on?</dt>
+          <dt>Which devices does connector run on?</dt>
           <dd>
             <table class="devices">
               <thead><tr><th>Device</th><th>Supported</th><th>Since Version</th></tr></thead>
@@ -469,24 +461,16 @@
               </tbody>
             </table>
             <p>The RG34XX will likely work from 1.4.0. The RG34XXSP may not map its sticks correctly.</p>
-            <p>If you have one of the Untested devices, or have tried slot on a device not listed, please <a href="https://github.com/BrandonKowalski/slot/issues">open an issue on GitHub</a> and let me know how it went.</p>
+            <p>If you have one of the Untested devices, or have tried connector on a device not listed, please <a href="https://github.com/mjkoo/slot/issues">open an issue on GitHub</a>. Please report connector problems here, not to the slot. project.</p>
           </dd>
         </div>
         <div class="qa">
-          <dt>Will slot run anything other than GBA?</dt>
+          <dt>Will connector run anything other than GBA?</dt>
           <dd>Yes. You can bring your GB and GBC carts to the party.</dd>
         </div>
         <div class="qa">
-          <dt>This is almost perfect but needs more systems. Will you add them?</dt>
-          <dd>No. I want to recreate the feeling I had playing my GBA SP as a child.</dd>
-        </div>
-        <div class="qa">
-          <dt>RetroAchievements and cheats would make this perfect. Will you add them?</dt>
-          <dd>No. These are two features I do not want to support. If they matter to you, a few of the forks have added them.</dd>
-        </div>
-        <div class="qa">
-          <dt>Does slot allow you to pair Bluetooth headphones?</dt>
-          <dd>No. Use the headphone jack.</dd>
+          <dt>Will connector add more systems?</dt>
+          <dd>No. connector stays Game Boy, Game Boy Color and Game Boy Advance only.</dd>
         </div>
       </dl>
     </div>
@@ -501,7 +485,7 @@
         </div>
         <div class="qa">
           <dt>Do I have to craft them by hand?</dt>
-          <dd>Nah! You can use the <a href="https://studio.slot-cfw.fyi">slot Cart Studio</a>.</dd>
+          <dd>Nah! You can use the <a href="https://studio.slot-cfw.fyi">Cart Studio</a> from the slot. project.</dd>
         </div>
       </dl>
     </div>
@@ -538,7 +522,7 @@
         <div class="qa">
           <dt>Can I trade Pokémon with a friend?</dt>
           <dd>
-            <p>Yes, with a second RG SP running <code>slot</code>.</p>
+            <p>Yes, with a second RG SP running <code>connector</code>.</p>
             <p>First, navigate to the game and press <kbd>START</kbd> to open the core selection menu. Pick <code>gpSP</code>.</p>
             <p>While in game, press <span class="chord"><kbd>SELECT</kbd> + <kbd>MENU</kbd></span> and choose <code>LINK</code>.</p>
             <p>One player needs to pick <code>HOST</code> while the other chooses <code>JOIN</code>.</p>
@@ -546,7 +530,7 @@
         </div>
         <div class="qa">
           <dt>Which games can link?</dt>
-          <dd><p>Pokémon Emerald, LeafGreen, and FireRed.</p><p>Additionally, both Advance Wars have worked for me.</p>
+          <dd><p>Pokémon Emerald, LeafGreen, and FireRed.</p><p>Both Advance Wars games have also worked.</p>
           <p>A hacky implementation of link play using mGBA can be used to play Mario Kart Advance.</p></dd>
         </div>
       </dl>
@@ -557,8 +541,8 @@
         <div class="qa">
           <dt>Do you accept contributions?</dt>
           <dd>
-              <p>I am not opposed to accepting pull requests. I just ask that you come discuss planned work in an issue on GitHub ahead of time.</p>
-              <p>slot is intentionally light on features. I am not looking to add the kitchen sink. If this form of collaboration doesn't appeal to you, several individuals have forked slot and gone off to make it their own.</p>
+              <p>Yes. Please open an issue on <a href="https://github.com/mjkoo/slot/issues">connector's GitHub</a> to discuss planned work first.</p>
+              <p>Changes that would suit slot. as well belong with the slot. project and its own contribution process, not here.</p>
           </dd>
         </div>
       </dl>
@@ -569,22 +553,20 @@
 <section class="panel endnote" id="credits" role="tabpanel" aria-labelledby="t-credits" hidden>
   <div class="wrap">
     <h2>Credits</h2>
+    <p>connector is a derivative of <a href="https://github.com/BrandonKowalski/slot">slot.</a> by <strong>Brandon T. Kowalski</strong>. His frontend, its design, UI and art, and most of the code are the foundation connector is built on. connector tracks slot. and merges its improvements, but is not affiliated with or endorsed by the slot. project. If you enjoy connector, consider <a href="https://ko-fi.com/kwallbmoc">supporting Brandon on Ko-fi</a>.</p>
+    <p>connector is free software under the GNU General Public License, version 3 or later. Copyright (C) 2026 Brandon T. Kowalski (slot.); copyright (C) 2026 Maxwell Koo and contributors (connector's modifications). <a href="https://github.com/mjkoo/slot">Source on GitHub</a>.</p>
     <p>Emulation is handled by <a href="https://mgba.io">mGBA</a> and <a href="https://github.com/libretro/gpsp">gpSP</a>.</p>
     <p><a href="https://github.com/pvaibhav/BaseOS">BaseOS</a> by <a href="https://github.com/pvaibhav">Prashant Vaibhav</a> serves as the operating system image.</p>
     <p>Type is <a href="https://github.com/googlefonts/opensans">Open Sans</a>, under the SIL Open Font License, and <a href="https://www.nerdfonts.com">Nerd Fonts</a> symbols by Ryan L. McIntyre, under MIT. The panel mask is derived from LCD3x, a public-domain shader by Gigaherz in the libretro shader collection. The Dot and Simpletex screen shaders are ports of Dot by Themaister and simpletex_lcd by jdgleaver from the same collection. The RG35XXSP bezel is "Perfect GBA SP" by <a href="https://github.com/mugwomp93/Knulli_Customization">mugwomp93</a>, from <a href="https://github.com/chrizzo-hb/knulli-bezels">knulli-bezels</a>, under CC BY-SA 4.0.</p>
-    <p>The sounds are a recording of me shoving a cartridge into my childhood GBA.</p>
-    <p>Game Boy is a trademark of Nintendo. slot is not affiliated with Nintendo.</p>
+    <p>The cart sounds are Brandon T. Kowalski's recording of a cartridge going into his childhood GBA.</p>
+    <p>Game Boy is a trademark of Nintendo. connector is not affiliated with Nintendo.</p>
   </div>
 </section>
 
 <section class="panel endnote" id="disclosure" role="tabpanel" aria-labelledby="t-disclosure" hidden>
   <div class="wrap">
     <h2>AI Disclosure</h2>
-    <p>The Rust frontend was put together by Claude Opus. I reviewed everything that was produced. The RG SP SVGs on this page were also generated by Claude. This documentation is 100% free-range, meatbag prose.</p>
-    <p>The project is extremely low stakes. I wanted a bespoke frontend for my RG SP and thought
-      that something that evokes the feeling of using my GBA SP as a kid would be pretty neat.</p>
-    <p>Use it, don't use it, I don't care.</p>
-    <p>Figured I should share the end result of all the wasted water. ✌🏻</p>
+    <p>slot.'s Rust frontend was put together by Claude Opus and reviewed by Brandon T. Kowalski. The RG SP SVGs on this page were also generated by Claude. connector's changes are also written with Claude and reviewed by its maintainers.</p>
   </div>
 </section>
 

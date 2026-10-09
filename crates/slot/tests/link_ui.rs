@@ -504,7 +504,7 @@ fn session_playing_on_gpsp() -> (Session, TempDir, Millis) {
             ..Default::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let mut s = Session::boot(d.path().to_path_buf());
     let mut now: Millis = 0;
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -1363,7 +1363,7 @@ fn session_on_a_real_core() -> Option<(Session, TempDir, Millis)> {
             ..Default::default()
         },
     )
-    .expect("write slot.state");
+    .expect("write connector.state");
     let mut s = Session::boot(d.path().to_path_buf());
     let mut now: Millis = 0;
     let deadline = Instant::now() + Duration::from_secs(10);
