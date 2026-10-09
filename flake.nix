@@ -47,6 +47,7 @@
               (craneLib.fileset.commonCargoSources ./.)
               ./crates/slot/assets
               ./crates/slot-ui/assets
+              ./card/System/bootlogo.bmp
             ];
           };
           commonArgs = {

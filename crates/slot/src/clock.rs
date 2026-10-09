@@ -1,4 +1,6 @@
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+#[cfg(feature = "test-support")]
+use std::sync::{Arc, Mutex};
+use std::sync::{Condvar, MutexGuard};
 use std::time::{Duration, Instant};
 
 /// Where the emulator thread reads the time and waits for it to pass.
@@ -8,6 +10,7 @@ use std::time::{Duration, Instant};
 #[derive(Clone)]
 pub(crate) enum EmuClock {
     Real,
+    #[cfg(feature = "test-support")]
     Manual(Arc<ManualClock>),
 }
 
@@ -15,6 +18,7 @@ impl EmuClock {
     pub(crate) fn now(&self) -> Instant {
         match self {
             EmuClock::Real => Instant::now(),
+            #[cfg(feature = "test-support")]
             EmuClock::Manual(m) => m.now(),
         }
     }
@@ -26,12 +30,14 @@ impl EmuClock {
     pub(crate) fn sleep(&self, d: Duration) {
         match self {
             EmuClock::Real => std::thread::sleep(d),
+            #[cfg(feature = "test-support")]
             EmuClock::Manual(m) => m.sleep(d),
         }
     }
 
     /// Lets a manual clock run without bound, so its thread can finish.
     pub(crate) fn release(&self) {
+        #[cfg(feature = "test-support")]
         if let EmuClock::Manual(m) = self {
             m.release();
         }
@@ -50,6 +56,7 @@ impl EmuClock {
                 Ok((g, _)) => g,
                 Err(e) => e.into_inner().0,
             },
+            #[cfg(feature = "test-support")]
             EmuClock::Manual(m) => m.wait_timeout(cv, guard, d),
         }
     }
@@ -65,27 +72,33 @@ impl EmuClock {
 ///
 /// Waits end exactly when asked unless the test makes them late with
 /// `oversleep_next` or `set_wake_latency`, the way a busy scheduler would.
+#[cfg(feature = "test-support")]
 pub struct ManualClock {
     base: Instant,
     state: Mutex<State>,
     moved: Condvar,
 }
 
+#[cfg(feature = "test-support")]
 struct State {
     now: Duration,
     horizon: Duration,
     parked: bool,
     oversleep: Duration,
     latency: Duration,
+    waiting_for: Option<Duration>,
 }
 
 /// How long a parked condvar wait sleeps for real between checks of the horizon.
 /// A notify on the condvar still wakes it at once.
+#[cfg(feature = "test-support")]
 const POLL: Duration = Duration::from_millis(1);
 
 /// How long `run_for` waits for the thread to park before it gives up.
+#[cfg(feature = "test-support")]
 const SETTLE: Duration = Duration::from_secs(10);
 
+#[cfg(feature = "test-support")]
 impl ManualClock {
     pub fn new() -> Arc<ManualClock> {
         Arc::new(ManualClock {
@@ -96,6 +109,7 @@ impl ManualClock {
                 parked: false,
                 oversleep: Duration::ZERO,
                 latency: Duration::ZERO,
+                waiting_for: None,
             }),
             moved: Condvar::new(),
         })
@@ -137,9 +151,13 @@ impl ManualClock {
         self.moved.notify_all();
         let give_up = Instant::now() + SETTLE;
         while !s.parked {
-            let left = give_up
-                .checked_duration_since(Instant::now())
-                .expect("the thread on the manual clock never settled");
+            let Some(left) = give_up.checked_duration_since(Instant::now()) else {
+                panic!(
+                    "the thread on the manual clock never settled: the clock is at {:?} of a \
+                     {:?} horizon, and its last wait was for {:?}",
+                    s.now, s.horizon, s.waiting_for
+                );
+            };
             s = self
                 .moved
                 .wait_timeout(s, left)
@@ -157,6 +175,7 @@ impl ManualClock {
     /// Takes the clock to `at`, plus any lateness, if the horizon allows; true
     /// when it did. Like work, lateness may carry the clock past the horizon.
     fn reach(&self, s: &mut State, at: Duration) -> bool {
+        s.waiting_for = Some(at);
         if at <= s.horizon {
             let late = s.latency.saturating_add(std::mem::take(&mut s.oversleep));
             s.now = s.now.max(at.saturating_add(late));

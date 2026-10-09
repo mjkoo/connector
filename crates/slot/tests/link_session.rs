@@ -55,14 +55,14 @@ fn try_recv_never_blocks_on_an_idle_link() {
     let mut client = TcpLink::join("127.0.0.1", port).expect("join");
     let _host = server.join().expect("host thread");
 
-    // A blocking read on a link nobody writes to never returns, so any bound
-    // tells the two apart; a generous one keeps a slow scheduler out of it.
+    // A read that waits even briefly costs frames, so the bound is a few frames:
+    // ten times what the call needs, to keep a slow scheduler out of it.
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(client.try_recv());
     });
     assert_eq!(
-        rx.recv_timeout(Duration::from_secs(5)),
+        rx.recv_timeout(Duration::from_millis(50)),
         Ok(None),
         "try_recv blocked, which would cost frames"
     );

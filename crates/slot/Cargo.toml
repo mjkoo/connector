@@ -9,6 +9,7 @@ license.workspace = true
 default = ["host"]
 host = ["dep:winit", "dep:cpal", "dep:gilrs", "slot-gfx/host"]
 device = ["slot-gfx/device"]
+test-support = []
 
 [dependencies]
 slot-gfx = { path = "../slot-gfx", default-features = false }
@@ -25,5 +26,6 @@ lz4_flex = { workspace = true }
 png = { workspace = true }
 
 [dev-dependencies]
+slot = { path = ".", default-features = false, features = ["test-support"] }
 slot-gfx = { path = "../slot-gfx", default-features = false, features = ["test-support"] }
 tempfile = { workspace = true }

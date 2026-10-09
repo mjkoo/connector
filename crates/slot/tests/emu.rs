@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use slot::audio::{AudioSink, Ring, StubSink};
 use slot::clock::ManualClock;
-use slot::emu::{CoreState, EmuHandle, Speed, FAST_STEPS, FAST_STEPS_MAX, PRESENT};
+use slot::emu::{CoreState, EmuHandle, Speed, FAST_STEPS, FAST_STEPS_MAX, FAST_TARGET, PRESENT};
 use slot::persist::Snapshot;
 use slot_retro::{
     AvInfo, ButtonMask, CoreError, LinkChannel, MockCore, RetroCore, NETPACKET_RELIABLE,
@@ -262,6 +262,8 @@ fn fast_forward_runs_the_chosen_number_of_core_frames_per_present() {
 struct Probe {
     inner: MockCore,
     cost: Duration,
+    skip_cost: Duration,
+    after: Duration,
     skip: bool,
     log: Arc<Mutex<Vec<bool>>>,
     clock: Option<Arc<ManualClock>>,
@@ -280,6 +282,8 @@ impl Probe {
         let probe = Box::new(Probe {
             inner: MockCore::new(),
             cost,
+            skip_cost: cost,
+            after: Duration::ZERO,
             skip: false,
             log: log.clone(),
             clock,
@@ -295,6 +299,7 @@ impl RetroCore for Probe {
     fn run_frame(&mut self, input: ButtonMask) {
         self.log.lock().expect("the skip log").push(self.skip);
         match &self.clock {
+            Some(clock) if self.skip => clock.advance(self.skip_cost),
             Some(clock) => clock.advance(self.cost),
             None if !self.cost.is_zero() => std::thread::sleep(self.cost),
             None => {}
@@ -309,6 +314,11 @@ impl RetroCore for Probe {
         self.inner.video_xrgb8888()
     }
     fn take_audio(&mut self) -> Vec<i16> {
+        // The worker takes the audio after it publishes the frame, so this stands
+        // for everything a present costs outside the core.
+        if let Some(clock) = &self.clock {
+            clock.advance(self.after);
+        }
         self.inner.take_audio()
     }
     fn serialize(&mut self) -> Result<Vec<u8>, CoreError> {
@@ -328,6 +338,15 @@ impl RetroCore for Probe {
     }
 }
 
+/// What a `Timed` worker's present costs on its clock: a drawn frame, a skipped
+/// frame, and the work after the frame.
+#[derive(Clone, Copy)]
+struct Costs {
+    draw: Duration,
+    skip: Duration,
+    after: Duration,
+}
+
 /// A worker on a manual clock whose core costs `cost` of that clock a frame.
 /// Between `run_for` calls the worker is parked, so the counts read there are
 /// settled.
@@ -343,8 +362,19 @@ impl Timed {
     }
 
     fn spawn_into(cost: Duration, ring: Arc<Ring>) -> Timed {
+        let costs = Costs {
+            draw: cost,
+            skip: cost,
+            after: Duration::ZERO,
+        };
+        Timed::spawn_costed(costs, ring)
+    }
+
+    fn spawn_costed(costs: Costs, ring: Arc<Ring>) -> Timed {
         let clock = ManualClock::new();
-        let (core, log) = Probe::with_clock(cost, Some(clock.clone()));
+        let (mut core, log) = Probe::with_clock(costs.draw, Some(clock.clone()));
+        core.skip_cost = costs.skip;
+        core.after = costs.after;
         let emu = EmuHandle::spawn_clocked(core, PathBuf::from("mock"), ring, clock.clone());
         emu.set_speed(Speed::Normal);
         assert!(
@@ -477,6 +507,56 @@ fn a_present_runs_what_it_can_afford_rather_than_the_whole_ceiling() {
         "{per:.1} frames a refresh at 5 ms each is {:.0} ms of a 16.67 ms refresh: the budget \
          never stopped it and the ceiling of {FAST_STEPS_MAX} did",
         per * 5.0
+    );
+}
+
+#[test]
+fn fast_forward_leaves_the_display_its_share_of_every_present() {
+    // The work after the frame grows from nothing to 8 ms, so the core's share of a
+    // present must shrink to keep the present inside its target.
+    let costs = Costs {
+        draw: Duration::from_millis(2),
+        skip: Duration::from_millis(2),
+        after: Duration::from_millis(8),
+    };
+    let t = Timed::spawn_costed(costs, Arc::new(Ring::new(0)));
+    t.emu.set_fast_steps(FAST_STEPS_MAX);
+    t.emu.set_speed(Speed::Fast);
+    t.run_for(PRESENT * 60);
+    let refreshes = 24;
+    let (ran, shown) = t.over(PRESENT * refreshes);
+
+    assert!(shown > 0, "nothing was presented");
+    let work = costs.draw * ran as u32 + costs.after * shown as u32;
+    // Each present may use FAST_TARGET of its first refresh and every later one whole.
+    let allowed = FAST_TARGET * shown as u32 + PRESENT * (refreshes - shown as u32);
+    assert!(
+        work <= allowed,
+        "{ran} frames over {shown} presents cost {work:?} with {:?} after each present, \
+         more than the {allowed:?} the presents may use",
+        costs.after
+    );
+}
+
+#[test]
+fn fast_forward_plans_on_what_a_skipped_frame_costs() {
+    // Skipped frames are cheap and only the last is drawn, so the whole ceiling
+    // fits in one refresh. Planning every frame at the drawn cost would fit two.
+    let costs = Costs {
+        draw: Duration::from_millis(6),
+        skip: Duration::from_millis(1),
+        after: Duration::ZERO,
+    };
+    let t = Timed::spawn_costed(costs, Arc::new(Ring::new(0)));
+    t.emu.set_fast_steps(FAST_STEPS_MAX);
+    t.emu.set_speed(Speed::Fast);
+    t.run_for(PRESENT * 60);
+    let (ran, shown) = t.over(PRESENT * 18);
+    assert_eq!(shown, 18, "{shown} presents in 18 refreshes");
+    assert_eq!(
+        ran,
+        shown * u64::from(FAST_STEPS_MAX),
+        "{ran} frames over {shown} presents with 1 ms skipped and 6 ms drawn frames"
     );
 }
 
@@ -1214,5 +1294,50 @@ fn waiting_on_an_unlocked_worker_does_not_block() {
     emu.tick(PANEL);
     let began = Instant::now();
     assert!(!emu.wait_frame(Duration::from_secs(10)));
-    assert!(began.elapsed() < Duration::from_secs(5), "the wait blocked");
+    let took = began.elapsed();
+    assert!(
+        took < Duration::from_millis(200),
+        "the wait blocked for {took:?}"
+    );
+}
+
+#[test]
+fn a_locked_worker_paces_its_sound_by_the_display_rate_it_measured() {
+    // The display says it refreshes every PANEL but really ticks every 18.33 ms. Once
+    // a window of ticks has been timed, sound follows the measured rate.
+    let mut sink = StubSink::new();
+    sink.open(32_768).expect("the stub refused to open");
+    let t = Timed::spawn_into(Duration::ZERO, sink.ring());
+    t.lock_to_the_display();
+    let real_time = 32_768.0 / 60.0;
+    let every = Duration::from_micros(18_333);
+    let window = || {
+        sink.device_drain();
+        let mut heard = 0;
+        for _ in 0..300 {
+            t.clock.advance(every);
+            t.emu.tick(PANEL);
+            assert!(
+                t.emu.wait_frame(Duration::from_secs(10)),
+                "a tick's frame never arrived"
+            );
+            heard += sink.device_drain();
+        }
+        heard as f64 / 300.0 / real_time
+    };
+    let declared = window();
+    let measured = window();
+    let (said, ticked) = (PANEL.as_secs_f64(), every.as_secs_f64());
+    let want = |scale: f64| scale / PRESENT.as_secs_f64();
+    assert!(
+        (declared / want(said) - 1.0).abs() < 0.01,
+        "{declared:.4} of real time before a window was timed, against {:.4} from the declared period",
+        want(said)
+    );
+    assert!(
+        (measured / want(ticked) - 1.0).abs() < 0.01,
+        "{measured:.4} of real time after a timed window, against {:.4} measured and {:.4} declared",
+        want(ticked),
+        want(said)
+    );
 }

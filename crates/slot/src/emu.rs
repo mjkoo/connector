@@ -6,7 +6,9 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crate::cable::{self, Cable};
-use crate::clock::{EmuClock, ManualClock};
+use crate::clock::EmuClock;
+#[cfg(feature = "test-support")]
+use crate::clock::ManualClock;
 use slot_retro::{
     ButtonMask, Link, LinkChannel, RetroCore, Rumble, GBA_H, GBA_W, NETPACKET_RELIABLE,
 };
@@ -26,7 +28,7 @@ pub const FAST_STEPS: u32 = 6;
 
 pub const FAST_STEPS_MAX: u32 = 6;
 
-const FAST_TARGET: Duration = Duration::from_micros(14_000);
+pub const FAST_TARGET: Duration = Duration::from_micros(14_000);
 
 const COST_BLEND: u32 = 4;
 
@@ -131,6 +133,8 @@ impl EmuHandle {
     }
 
     /// A worker paced by a clock the caller moves, for checking pacing frame by frame.
+    /// It has no link: a manual clock cannot pace a peer on real time.
+    #[cfg(feature = "test-support")]
     pub fn spawn_clocked(
         core: Box<dyn RetroCore>,
         rom: PathBuf,
@@ -814,11 +818,7 @@ impl Worker {
             }
             self.frame_done(served);
             if lock {
-                let until = if stalled {
-                    due + PRESENT
-                } else {
-                    self.clock.now() + STALL
-                };
+                let until = stall_until(stalled, due, self.clock.now());
                 loop {
                     match self.next_tick(served, until) {
                         Wait::Tick(tick) => {
@@ -837,12 +837,7 @@ impl Worker {
                         Wait::Late => {
                             rate.stalled();
                             stalled = true;
-                            let now = self.clock.now();
-                            due = if now.duration_since(until) > PRESENT {
-                                now
-                            } else {
-                                until
-                            };
+                            due = stall_due(until, self.clock.now());
                         }
                     }
                     break;
@@ -905,6 +900,11 @@ impl Worker {
                 *transport = Some(t);
             }
             Cmd::BeginCable(player, t) => {
+                #[cfg(feature = "test-support")]
+                debug_assert!(
+                    !matches!(self.clock, EmuClock::Manual(_)),
+                    "a cable waits on its peer in real time, which a manual clock never passes"
+                );
                 self.shared.link_lost.store(false, Ordering::Relaxed);
                 self.shared.peer_ended.store(false, Ordering::Relaxed);
                 self.shared.bios_mismatch.store(false, Ordering::Relaxed);
@@ -1006,6 +1006,27 @@ fn flush_outbound(transport: &mut Option<Box<dyn LinkChannel>>, link: &Link) {
     };
     while let Some(packet) = link.take_outbound() {
         t.send(NETPACKET_RELIABLE, &packet);
+    }
+}
+
+/// When a locked worker stops waiting for the display: one present after the
+/// last due frame while stalled, so a stall runs at 60 Hz, or `STALL` from now.
+fn stall_until(stalled: bool, due: Instant, now: Instant) -> Instant {
+    if stalled {
+        due + PRESENT
+    } else {
+        now + STALL
+    }
+}
+
+/// The due time of a frame run late at `now` for a wait that ended at `until`:
+/// the schedule holds through a little lateness, and restarts from `now` once
+/// more than a present behind rather than catching up.
+fn stall_due(until: Instant, now: Instant) -> Instant {
+    if now.duration_since(until) > PRESENT {
+        now
+    } else {
+        until
     }
 }
 
@@ -1273,6 +1294,35 @@ mod tests {
         assert!(first.is_empty(), "a stalled window gave {first:?}");
         let next = start + PANEL * RATE_WINDOW;
         assert!(near_panel(run_window(&mut rate, next, 1)));
+    }
+
+    #[test]
+    fn a_display_that_stops_ticking_is_given_until_the_stall_patience() {
+        let now = Instant::now();
+        assert_eq!(stall_until(false, now - PRESENT * 9, now), now + STALL);
+    }
+
+    #[test]
+    fn a_stalled_worker_waits_one_present_from_its_last_due_frame() {
+        // Measuring from now instead would add each frame's cost to every wait.
+        let due = Instant::now();
+        let now = due + Duration::from_millis(5);
+        assert_eq!(stall_until(true, due, now), due + PRESENT);
+    }
+
+    #[test]
+    fn a_stalled_frame_run_a_little_late_keeps_the_schedule() {
+        let until = Instant::now();
+        for late in [Duration::ZERO, Duration::from_millis(3), PRESENT] {
+            assert_eq!(stall_due(until, until + late), until, "{late:?} late");
+        }
+    }
+
+    #[test]
+    fn a_stalled_frame_run_presents_late_restarts_the_schedule_from_now() {
+        let until = Instant::now();
+        let now = until + PRESENT * 3;
+        assert_eq!(stall_due(until, now), now);
     }
 
     #[test]
