@@ -10,6 +10,8 @@
   refused with "Core not responding", so the cart stays in rather than losing its save.
 - Saving or loading a state on a stuck core says "Core not responding", and a save state the
   core rejects says "Load Failed" instead of "State Loaded".
+- A long pause, such as a stuck core or a hidden window, no longer skips animations and
+  on-screen messages to their end.
 
 ## slot. releases
 

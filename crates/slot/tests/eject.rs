@@ -167,6 +167,21 @@ fn eject_with_an_unresponsive_core_keeps_the_cart_in() {
 }
 
 #[test]
+fn a_refused_eject_is_still_shown_after_the_stall_it_caused() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    core.wedged.store(true, Ordering::Relaxed);
+    a.apply(Action::Eject);
+    a.update(slot::frontend::frame_dt(Duration::from_secs(2)));
+    assert_eq!(
+        a.toast(),
+        Some(Toast::CoreNotResponding),
+        "the wait on the wedged core swallowed its own message"
+    );
+}
+
+#[test]
 fn eject_keeps_the_cart_in_when_only_the_save_ram_goes_unanswered() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let core = FaultySnapshot::default();

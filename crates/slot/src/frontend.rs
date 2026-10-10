@@ -29,6 +29,14 @@ use crate::wallpaper;
 
 const DOZE_TIMEOUT: Duration = Duration::from_secs(180);
 
+/// The most app time one frame may advance, so a stall (a blocked request, a
+/// hidden window) can't skip every timer and animation to its end.
+const MAX_FRAME: Duration = Duration::from_millis(100);
+
+pub fn frame_dt(elapsed: Duration) -> f32 {
+    elapsed.min(MAX_FRAME).as_secs_f32()
+}
+
 const ALERT_INK: [u8; 3] = [0xf0, 0xb4, 0x3c];
 
 pub struct Frontend {
@@ -471,7 +479,7 @@ impl Frontend {
             return;
         }
         self.session.feed(events, now);
-        let dt = self.last.elapsed().as_secs_f32();
+        let dt = frame_dt(self.last.elapsed());
         self.last = Instant::now();
         self.session.update(dt);
     }
@@ -718,5 +726,20 @@ fn upload_rgba(
             *slot = Some(id);
             id
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_normal_frame_passes_through() {
+        assert_eq!(frame_dt(Duration::from_millis(16)), 0.016);
+    }
+
+    #[test]
+    fn a_stall_advances_one_capped_frame() {
+        assert_eq!(frame_dt(Duration::from_secs(2)), MAX_FRAME.as_secs_f32());
     }
 }
