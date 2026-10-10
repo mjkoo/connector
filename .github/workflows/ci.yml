@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    # The flake's checks (fmt, clippy on host and device, doc, audit, tests)
+    # only target macOS; Linux runs connector on the device.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Flake checks
+        run: nix flake check --print-build-logs
+
+      - name: Nix formatting
+        run: nix fmt -- --ci
+
+      - name: Card scripts
+        run: nix run nixpkgs#go-task -- test:card

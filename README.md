@@ -4,8 +4,8 @@
 
 A Game Boy-centric frontend for the Anbernic RG SP, built for link play.
 
-<a href="LICENSE"><img src="https://img.shields.io/github/license/mjkoo/slot?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="License"></a>
-<a href="https://github.com/mjkoo/slot/releases"><img src="https://img.shields.io/github/downloads/mjkoo/slot/total?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="Downloads"></a>
+<a href="LICENSE"><img src="https://img.shields.io/github/license/mjkoo/connector?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="License"></a>
+<a href="https://github.com/mjkoo/connector/releases"><img src="https://img.shields.io/github/downloads/mjkoo/connector/total?style=for-the-badge&labelColor=242429&color=4d4d57" height="36" alt="Downloads"></a>
 <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Changelog-4d4d57?style=for-the-badge&labelColor=242429" height="36" alt="Changelog"></a>
 
 </div>
@@ -65,7 +65,7 @@ slot. update.
 
 The RG34XX will likely work from 1.4.0. The RG34XXSP may not map its sticks correctly.
 
-If you have one of the Untested devices, or have tried connector on a device not listed, please [open an issue here](https://github.com/mjkoo/slot/issues). Please do not report connector problems to the slot. project.
+If you have one of the Untested devices, or have tried connector on a device not listed, please [open an issue here](https://github.com/mjkoo/connector/issues). Please do not report connector problems to the slot. project.
 
 ---
 
@@ -80,7 +80,7 @@ for that work. If you enjoy connector, consider
 
 - connector tracks slot. and merges its improvements.
 - connector is not affiliated with or endorsed by the slot. project. Please report problems
-  with connector [here](https://github.com/mjkoo/slot/issues), never to slot.
+  with connector [here](https://github.com/mjkoo/connector/issues), never to slot.
 - The user guide's Cart Studio links point to slot.'s Cart Studio, which belongs to the
   slot. project.
 
