@@ -51,9 +51,12 @@ build() {
 	done
 
 	cflags=""
-	if [ "$(uname -s)-$(uname -m)" = "Linux-aarch64" ]; then
-		cflags="$device_cflags"
-	fi
+	case "$(uname -s)-$(uname -m)" in
+	Linux-aarch64) cflags="$device_cflags" ;;
+	# mGBA pins a 10.6 deployment target, below futimens' 10.13. Apple clang
+	# warns about that; upstream clang (as in the nix dev shell) errors.
+	Darwin-*) cflags="-Wno-error=unguarded-availability-new" ;;
+	esac
 	cmake -S "$src" -B "$obj" -DLIBMGBA_ONLY=ON -DBUILD_LIBRETRO=ON -DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_C_FLAGS="$cflags" >/dev/null
 	cmake --build "$obj" --target mgba_libretro --parallel "$(getconf _NPROCESSORS_ONLN)" >/dev/null
