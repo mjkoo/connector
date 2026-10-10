@@ -8,6 +8,12 @@ fn saving_and_loading_say_which_one_happened() {
 }
 
 #[test]
+fn a_load_or_eject_the_core_could_not_do_says_so() {
+    assert_eq!(Toast::LoadFailed.text(), "Load Failed");
+    assert_eq!(Toast::CoreNotResponding.text(), "Core not responding");
+}
+
+#[test]
 fn the_link_shortcut_on_the_wrong_core_says_to_switch() {
     assert_eq!(Toast::NeedsGpsp.text(), "Please switch to gpSP");
     let f = toast_face(Toast::NeedsGpsp);
@@ -25,10 +31,12 @@ fn a_cart_gpsp_cannot_link_says_there_is_no_link() {
 fn the_banner_says_what_happened_and_never_what_is_on_screen() {
     let all = Toast::all();
     assert_eq!(
-        all[..14],
+        all[..16],
         [
             Toast::StateSaved,
             Toast::StateLoaded,
+            Toast::LoadFailed,
+            Toast::CoreNotResponding,
             Toast::NeedsGpsp,
             Toast::NoLink,
             Toast::LinkEnded,
@@ -45,7 +53,7 @@ fn the_banner_says_what_happened_and_never_what_is_on_screen() {
         "a banner was added or dropped: every face is uploaded by its place in this list"
     );
     assert_eq!(
-        all[14..],
+        all[16..],
         GbPalette::all().map(Toast::Palette).collect::<Vec<_>>()[..],
         "the palette banners do not follow the fixed ones in palette order"
     );

@@ -621,6 +621,106 @@ fn battery_save_ram_reaches_the_core_and_comes_back() {
 }
 
 #[test]
+fn a_state_the_core_rejects_does_not_load() {
+    let emu = spawn();
+    let snapshot = emu.snapshot();
+    assert!(
+        !snapshot.load(vec![0; 3]),
+        "a state the core rejected was reported loaded"
+    );
+    let state = snapshot.state().expect("the core gave up no state");
+    assert!(
+        snapshot.load(state),
+        "a state the core took was reported failed"
+    );
+}
+
+/// A core whose frame never ends while the test holds it.
+struct Wedge {
+    inner: MockCore,
+    held: Arc<AtomicBool>,
+}
+
+impl RetroCore for Wedge {
+    fn load(&mut self, rom: &Path) -> Result<(), CoreError> {
+        self.inner.load(rom)
+    }
+    fn run_frame(&mut self, input: ButtonMask) {
+        while self.held.load(Ordering::Acquire) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        self.inner.run_frame(input)
+    }
+    fn video_xrgb8888(&self) -> &[u8] {
+        self.inner.video_xrgb8888()
+    }
+    fn take_audio(&mut self) -> Vec<i16> {
+        self.inner.take_audio()
+    }
+    fn serialize(&mut self) -> Result<Vec<u8>, CoreError> {
+        self.inner.serialize()
+    }
+    fn unserialize(&mut self, data: &[u8]) -> Result<(), CoreError> {
+        self.inner.unserialize(data)
+    }
+    fn save_ram(&self) -> Option<Vec<u8>> {
+        self.inner.save_ram()
+    }
+    fn load_save_ram(&mut self, data: &[u8]) -> Result<(), CoreError> {
+        self.inner.load_save_ram(data)
+    }
+    fn av_info(&self) -> AvInfo {
+        self.inner.av_info()
+    }
+}
+
+/// Frees a held `Wedge` when dropped, so a failing test still lets its worker
+/// stop instead of hanging the drop that joins it.
+struct Release(Arc<AtomicBool>);
+
+impl Drop for Release {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+#[test]
+fn a_wedged_core_answers_nothing_and_says_so() {
+    let held = Arc::new(AtomicBool::new(true));
+    let emu = spawn_with_core(Box::new(Wedge {
+        inner: MockCore::new(),
+        held: held.clone(),
+    }));
+    let _release = Release(held.clone());
+    emu.set_answer_wait(Duration::from_millis(50));
+    let snapshot = emu.snapshot();
+    assert!(snapshot.responsive(), "a fresh core was already unanswered");
+
+    let began = Instant::now();
+    assert_eq!(snapshot.state(), None, "a wedged core answered");
+    assert!(
+        began.elapsed() < Duration::from_secs(1),
+        "the request waited {:?} on a wedged core",
+        began.elapsed()
+    );
+    assert!(
+        !snapshot.responsive(),
+        "a wedged core still looked responsive"
+    );
+
+    held.store(false, Ordering::Release);
+    emu.set_answer_wait(Duration::from_secs(10));
+    assert!(
+        snapshot.state().is_some(),
+        "the core never answered once freed"
+    );
+    assert!(
+        snapshot.responsive(),
+        "a core that answered again still looked wedged"
+    );
+}
+
+#[test]
 fn a_captured_thumbnail_is_the_unfiltered_core_frame() {
     let emu = spawn();
     assert!(wait_for(|| emu.has_published()), "no frame was published");

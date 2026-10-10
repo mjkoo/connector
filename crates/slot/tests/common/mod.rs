@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicI64, AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -222,8 +222,48 @@ impl Snapshot for StubSnapshot {
         self.thumb.clone()
     }
 
-    fn load(&self, state: Vec<u8>) {
+    fn load(&self, state: Vec<u8>) -> bool {
         *self.loaded.lock().expect("loaded") = Some(state);
+        true
+    }
+}
+
+/// A core the test can make turn states down or stop answering.
+#[derive(Clone, Default)]
+pub struct FaultySnapshot {
+    pub rejects: Arc<AtomicBool>,
+    pub wedged: Arc<AtomicBool>,
+}
+
+impl FaultySnapshot {
+    pub fn boxed(&self) -> Box<dyn Snapshot> {
+        Box::new(self.clone())
+    }
+
+    fn wedged(&self) -> bool {
+        self.wedged.load(Ordering::Relaxed)
+    }
+}
+
+impl Snapshot for FaultySnapshot {
+    fn state(&self) -> Option<Vec<u8>> {
+        (!self.wedged()).then(|| vec![9u8; 1024])
+    }
+
+    fn save_ram(&self) -> Option<Vec<u8>> {
+        None
+    }
+
+    fn thumb(&self) -> Option<Vec<u8>> {
+        (!self.wedged()).then(|| b"png".to_vec())
+    }
+
+    fn load(&self, _state: Vec<u8>) -> bool {
+        !self.wedged() && !self.rejects.load(Ordering::Relaxed)
+    }
+
+    fn responsive(&self) -> bool {
+        !self.wedged()
     }
 }
 
@@ -267,8 +307,8 @@ impl Snapshot for CoreSnapshot {
         Some(b"png".to_vec())
     }
 
-    fn load(&self, state: Vec<u8>) {
-        self.with(|c| c.unserialize(&state).expect("unserialize"));
+    fn load(&self, state: Vec<u8>) -> bool {
+        self.with(|c| c.unserialize(&state).is_ok())
     }
 }
 

@@ -5,6 +5,10 @@
 - slot. is now connector: a derivative of slot. by Brandon T. Kowalski. The binary is
   `System/connector`, the log is `connector.log`, and settings move from
   `Config/slot.state` to `Config/connector.state` on first boot.
+- A core that stops responding no longer freezes eject, closing the lid, power off or
+  autosave. They give up after 2 seconds, and eject is refused with "Core not responding" so
+  the cart stays in rather than losing its save.
+- A save state the core rejects says "Load Failed" instead of "State Loaded".
 
 ## slot. releases
 

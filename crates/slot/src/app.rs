@@ -2433,13 +2433,18 @@ impl App {
         if self.single_cart() {
             return self.refuse();
         }
-        let cart = match &mut self.phase {
-            Phase::Playing { cart } | Phase::Inserting { cart, .. } => std::mem::take(cart),
+        let cart = match &self.phase {
+            Phase::Playing { cart } | Phase::Inserting { cart, .. } => cart.clone(),
             _ => return,
         };
         self.end_link();
         self.close_game_menu();
-        self.flush_eject(&cart);
+        // A core that stopped answering keeps its cart: dropping its emulator
+        // would wait on the wedged thread forever.
+        if !self.flush_eject(&cart) {
+            self.hud.toast(Toast::CoreNotResponding, self.now());
+            return self.refuse();
+        }
         self.pending = None;
         self.refusal = None;
         self.refused_from = None;
@@ -2449,14 +2454,18 @@ impl App {
         };
     }
 
-    fn flush_eject(&mut self, stem: &str) {
+    fn flush_eject(&mut self, stem: &str) -> bool {
         self.settle_saves();
         let (Some(root), Some(snapshot)) = (&self.root, &self.snapshot) else {
-            return;
+            return true;
         };
         let Some(state) = snapshot.state() else {
+            if !snapshot.responsive() {
+                eprintln!("connector: eject: the core stopped answering, keeping the cart in");
+                return false;
+            }
             eprintln!("connector: eject: the core gave up no state");
-            return;
+            return true;
         };
         let (state, sav) = trusted_write(snapshot.as_ref(), state, "eject");
         let state = state.filter(|_| self.state.eject_save);
@@ -2474,6 +2483,7 @@ impl App {
             }
             Err(e) => eprintln!("connector: eject: {e}"),
         }
+        true
     }
 
     fn doze(&mut self) {
@@ -3132,7 +3142,10 @@ impl App {
             }
         };
         let prior = snapshot.state();
-        snapshot.load(bytes);
+        if !snapshot.load(bytes) {
+            self.hud.toast(Toast::LoadFailed, self.now());
+            return true;
+        }
         self.hud.toast(Toast::StateLoaded, self.now());
         if let Some(prior) = prior {
             self.pending = Some((PendingUndo::Load { prior }, self.now()));
@@ -3226,7 +3239,9 @@ impl App {
             PendingUndo::Save { stamp, evicted } => self.undo_save(&stamp, evicted),
             PendingUndo::Load { prior } => {
                 if let Some(snapshot) = &self.snapshot {
-                    snapshot.load(prior);
+                    if !snapshot.load(prior) {
+                        self.hud.toast(Toast::LoadFailed, self.now());
+                    }
                 }
             }
         }

@@ -3,13 +3,17 @@ mod common;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use common::{app_playing_in, boot, tmp_root_with_carts, StubSnapshot};
+use std::sync::atomic::Ordering;
+
+use common::{
+    app_playing_in, app_playing_with, boot, tmp_root_with_carts, FaultySnapshot, StubSnapshot,
+};
 use slot::app::Phase;
 use slot::emu::Speed;
 use slot::persist::eject;
 use slot_input::Action;
 use slot_store::{read_slot_state, write_slot_state, Core, Platform, SlotState, StateRing};
-use slot_ui::{Draw, CART_W, OUT_H, OUT_W};
+use slot_ui::{Draw, Toast, CART_W, OUT_H, OUT_W};
 
 fn seated(cart: &str) -> SlotState {
     SlotState {
@@ -136,6 +140,30 @@ fn eject_preserves_the_levels() {
     let s = read_slot_state(d.path());
     assert_eq!((s.brightness, s.blue_light, s.volume), (2, 7, 35));
     assert!(s.muted, "the cart came out and the sound came back");
+}
+
+#[test]
+fn eject_with_an_unresponsive_core_keeps_the_cart_in() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    core.wedged.store(true, Ordering::Relaxed);
+    a.apply(Action::Eject);
+    assert!(
+        matches!(a.phase(), Phase::Playing { cart } if cart == "Emerald"),
+        "a wedged core's cart left the slot"
+    );
+    assert!(a.refusal_active(a.now()), "the eject was not refused");
+    assert_eq!(a.toast(), Some(Toast::CoreNotResponding));
+    assert_eq!(read_slot_state(d.path()).cart, Some("Emerald".into()));
+
+    core.wedged.store(false, Ordering::Relaxed);
+    a.apply(Action::Eject);
+    assert!(
+        matches!(a.phase(), Phase::Ejecting { .. }),
+        "the cart would not eject once the core answered again"
+    );
+    assert_eq!(read_slot_state(d.path()).cart, None);
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, AtomicU64, AtomicU8, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -42,6 +42,10 @@ const TRACE_EVERY: u64 = 300;
 
 const MAX_LINK_PACKETS_PER_PRESENT: u32 = 256;
 
+/// How long the UI waits for the worker to answer a request before it takes the
+/// core for wedged.
+const ANSWER_WAIT: Duration = Duration::from_secs(2);
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Speed {
     Paused,
@@ -77,7 +81,7 @@ pub struct EmuHandle {
 }
 
 enum Cmd {
-    Load(Vec<u8>),
+    Load(Vec<u8>, Sender<bool>),
     Save(Sender<Vec<u8>>),
     Sav(Sender<Option<Vec<u8>>>),
     Thumb(Sender<Option<Vec<u8>>>),
@@ -111,6 +115,8 @@ struct Shared {
     locked: AtomicBool,
     present_ns: AtomicU64,
     requested: AtomicBool,
+    answer_wait_ns: AtomicU64,
+    unanswered: AtomicBool,
     clock: Mutex<Clock>,
     clocked: Condvar,
 }
@@ -191,6 +197,8 @@ impl EmuHandle {
             locked: AtomicBool::new(false),
             present_ns: AtomicU64::new(PRESENT.as_nanos() as u64),
             requested: AtomicBool::new(false),
+            answer_wait_ns: AtomicU64::new(ANSWER_WAIT.as_nanos() as u64),
+            unanswered: AtomicBool::new(false),
             clock: Mutex::new(Clock::default()),
             clocked: Condvar::new(),
         });
@@ -399,7 +407,17 @@ impl EmuHandle {
     }
 
     pub fn request_load(&self, state: Vec<u8>) {
-        request(&self.cmds, &self.shared, Cmd::Load(state));
+        let (tx, _) = channel();
+        request(&self.cmds, &self.shared, Cmd::Load(state, tx));
+    }
+
+    /// Shortens how long a snapshot waits for an answer, so a test of a wedged
+    /// core needn't sit out the real wait.
+    #[cfg(feature = "test-support")]
+    pub fn set_answer_wait(&self, wait: Duration) {
+        self.shared
+            .answer_wait_ns
+            .store(wait.as_nanos() as u64, Ordering::Relaxed);
     }
 
     pub fn snapshot(&self) -> EmuSnapshot {
@@ -416,27 +434,47 @@ pub struct EmuSnapshot {
     shared: Arc<Shared>,
 }
 
+impl EmuSnapshot {
+    /// Sends a request and waits a bounded time for its answer. A worker that
+    /// misses the wait is marked unanswered until it next answers.
+    fn ask<T>(&self, cmd: impl FnOnce(Sender<T>) -> Cmd) -> Option<T> {
+        let (tx, rx) = channel();
+        request(&self.cmds, &self.shared, cmd(tx)).then_some(())?;
+        let wait = Duration::from_nanos(self.shared.answer_wait_ns.load(Ordering::Relaxed));
+        match rx.recv_timeout(wait) {
+            Ok(answer) => {
+                self.shared.unanswered.store(false, Ordering::Release);
+                Some(answer)
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                eprintln!("connector: the core did not answer in {wait:?}");
+                self.shared.unanswered.store(true, Ordering::Release);
+                None
+            }
+            Err(RecvTimeoutError::Disconnected) => None,
+        }
+    }
+}
+
 impl Snapshot for EmuSnapshot {
     fn state(&self) -> Option<Vec<u8>> {
-        let (tx, rx) = channel();
-        request(&self.cmds, &self.shared, Cmd::Save(tx)).then_some(())?;
-        rx.recv().ok()
+        self.ask(Cmd::Save)
     }
 
     fn save_ram(&self) -> Option<Vec<u8>> {
-        let (tx, rx) = channel();
-        request(&self.cmds, &self.shared, Cmd::Sav(tx)).then_some(())?;
-        rx.recv().ok().flatten()
+        self.ask(Cmd::Sav).flatten()
     }
 
     fn thumb(&self) -> Option<Vec<u8>> {
-        let (tx, rx) = channel();
-        request(&self.cmds, &self.shared, Cmd::Thumb(tx)).then_some(())?;
-        rx.recv().ok().flatten()
+        self.ask(Cmd::Thumb).flatten()
     }
 
-    fn load(&self, state: Vec<u8>) {
-        request(&self.cmds, &self.shared, Cmd::Load(state));
+    fn load(&self, state: Vec<u8>) -> bool {
+        self.ask(|reply| Cmd::Load(state, reply)).unwrap_or(false)
+    }
+
+    fn responsive(&self) -> bool {
+        !self.shared.unanswered.load(Ordering::Acquire)
     }
 
     fn resume_trusted(&self) -> bool {
@@ -881,10 +919,12 @@ impl Worker {
                 }
                 Err(e) => eprintln!("connector: {e}"),
             },
-            Cmd::Load(state) => {
-                if let Err(e) = core.unserialize(&self.for_core(state)) {
+            Cmd::Load(state, reply) => {
+                let loaded = core.unserialize(&self.for_core(state));
+                if let Err(e) = &loaded {
                     eprintln!("connector: {e}");
                 }
+                let _ = reply.send(loaded.is_ok());
             }
             Cmd::Sav(reply) => {
                 let _ = reply.send(core.save_ram());

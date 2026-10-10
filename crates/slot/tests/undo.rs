@@ -1,8 +1,11 @@
 mod common;
 
-use common::{app_playing_in, app_playing_with, tmp_root_with_carts, CoreSnapshot};
+use std::sync::atomic::Ordering;
+
+use common::{app_playing_in, app_playing_with, tmp_root_with_carts, CoreSnapshot, FaultySnapshot};
 use slot_input::{Action, Btn};
 use slot_store::{Core, Platform, StateRing};
+use slot_ui::Toast;
 
 #[test]
 fn undoing_a_save_removes_it_and_restores_the_evicted_entry() {
@@ -148,4 +151,17 @@ fn the_plate_is_drawn_only_over_the_switcher_and_only_while_the_offer_stands() {
         expired.len() + 1,
         "the plate outlived the offer"
     );
+}
+
+#[test]
+fn undoing_a_load_the_core_rejects_says_so() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    a.apply_at(Action::SaveState, 1_000);
+    a.apply_at(Action::LoadState, 2_000);
+    assert_eq!(a.toast(), Some(Toast::StateLoaded));
+    core.rejects.store(true, Ordering::Relaxed);
+    a.undo(3_000);
+    assert_eq!(a.toast(), Some(Toast::LoadFailed));
 }

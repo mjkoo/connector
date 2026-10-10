@@ -1159,7 +1159,9 @@ impl Snapshot for RefusedResume {
         None
     }
 
-    fn load(&self, _state: Vec<u8>) {}
+    fn load(&self, _state: Vec<u8>) -> bool {
+        true
+    }
 
     fn resume_trusted(&self) -> bool {
         false

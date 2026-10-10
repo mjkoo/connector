@@ -1,6 +1,8 @@
 mod common;
 
-use common::{app_playing_in, tmp_root_with_carts};
+use std::sync::atomic::Ordering;
+
+use common::{app_playing_in, app_playing_with, tmp_root_with_carts, FaultySnapshot};
 use slot_input::Action;
 use slot_ui::{Toast, HUD_MS};
 
@@ -19,6 +21,22 @@ fn a_load_says_state_loaded() {
     a.apply(Action::SaveState);
     a.apply(Action::LoadState);
     assert_eq!(a.toast(), Some(Toast::StateLoaded));
+}
+
+#[test]
+fn a_state_the_core_rejects_says_load_failed_and_keeps_the_last_undo() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    a.apply(Action::SaveState);
+    core.rejects.store(true, Ordering::Relaxed);
+    a.apply(Action::LoadState);
+    assert_eq!(a.toast(), Some(Toast::LoadFailed));
+    assert_eq!(
+        a.undo_label(),
+        Some("undo save"),
+        "a load that never happened replaced the save's undo"
+    );
 }
 
 #[test]

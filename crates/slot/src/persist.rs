@@ -6,13 +6,17 @@ pub trait Snapshot {
     fn state(&self) -> Option<Vec<u8>>;
     fn save_ram(&self) -> Option<Vec<u8>>;
     fn thumb(&self) -> Option<Vec<u8>>;
-    fn load(&self, state: Vec<u8>);
+    fn load(&self, state: Vec<u8>) -> bool;
 
     fn resume_trusted(&self) -> bool {
         true
     }
 
     fn save_ram_trusted(&self) -> bool {
+        true
+    }
+
+    fn responsive(&self) -> bool {
         true
     }
 }

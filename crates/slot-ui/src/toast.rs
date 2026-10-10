@@ -10,6 +10,8 @@ use crate::CartFace;
 pub enum Toast {
     StateSaved,
     StateLoaded,
+    LoadFailed,
+    CoreNotResponding,
     NeedsGpsp,
     NoLink,
     LinkEnded,
@@ -26,9 +28,11 @@ pub enum Toast {
 }
 
 impl Toast {
-    const FIXED: [Toast; 14] = [
+    const FIXED: [Toast; 16] = [
         Toast::StateSaved,
         Toast::StateLoaded,
+        Toast::LoadFailed,
+        Toast::CoreNotResponding,
         Toast::NeedsGpsp,
         Toast::NoLink,
         Toast::LinkEnded,
@@ -61,6 +65,8 @@ impl Toast {
         match self {
             Toast::StateSaved => "State Saved",
             Toast::StateLoaded => "State Loaded",
+            Toast::LoadFailed => "Load Failed",
+            Toast::CoreNotResponding => "Core not responding",
             Toast::NeedsGpsp => "Please switch to gpSP",
             Toast::NoLink => "No link support",
             Toast::LinkEnded => "Link ended",
