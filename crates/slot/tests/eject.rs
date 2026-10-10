@@ -167,6 +167,21 @@ fn eject_with_an_unresponsive_core_keeps_the_cart_in() {
 }
 
 #[test]
+fn eject_keeps_the_cart_in_when_only_the_save_ram_goes_unanswered() {
+    let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    core.sav_wedged.store(true, Ordering::Relaxed);
+    a.apply(Action::Eject);
+    assert!(
+        matches!(a.phase(), Phase::Playing { cart } if cart == "Emerald"),
+        "the cart left with its battery save unwritten"
+    );
+    assert_eq!(a.toast(), Some(Toast::CoreNotResponding));
+    assert_eq!(read_slot_state(d.path()).cart, Some("Emerald".into()));
+}
+
+#[test]
 fn ejecting_a_playing_cart_flushes_before_the_animation_starts() {
     let d = tmp_root_with_carts(&["Emerald", "Fusion"]);
     let mut a = app_playing_in(d.path(), "Emerald");

@@ -57,3 +57,30 @@ fn a_toast_goes_away_on_its_own() {
     a.tick_ms(1_000 + HUD_MS);
     assert_eq!(a.toast(), None);
 }
+
+#[test]
+fn a_load_on_a_wedged_core_says_the_core_is_not_responding() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    a.apply(Action::SaveState);
+    core.wedged.store(true, Ordering::Relaxed);
+    let loads = core.loads.load(Ordering::Relaxed);
+    a.apply(Action::LoadState);
+    assert_eq!(a.toast(), Some(Toast::CoreNotResponding));
+    assert_eq!(
+        core.loads.load(Ordering::Relaxed),
+        loads,
+        "it waited on a load after the core had already stopped answering"
+    );
+}
+
+#[test]
+fn a_save_on_a_wedged_core_says_the_core_is_not_responding() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    core.wedged.store(true, Ordering::Relaxed);
+    a.apply(Action::SaveState);
+    assert_eq!(a.toast(), Some(Toast::CoreNotResponding));
+}

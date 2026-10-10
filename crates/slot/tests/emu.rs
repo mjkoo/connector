@@ -685,6 +685,34 @@ impl Drop for Release {
 }
 
 #[test]
+fn a_load_given_up_on_never_lands_later() {
+    let held = Arc::new(AtomicBool::new(true));
+    let emu = spawn_with_core(Box::new(Wedge {
+        inner: MockCore::new(),
+        held: held.clone(),
+    }));
+    let _release = Release(held.clone());
+    emu.set_answer_wait(Duration::from_millis(50));
+    let far = 1_000_000u64;
+    assert!(
+        !emu.snapshot().load(far.to_le_bytes().to_vec()),
+        "a wedged core reported a load"
+    );
+
+    held.store(false, Ordering::Release);
+    emu.set_answer_wait(Duration::from_secs(10));
+    let start = frame_count(&emu);
+    assert!(
+        wait_for(|| frame_count(&emu) >= start + 10),
+        "the core never ran once freed"
+    );
+    assert!(
+        frame_count(&emu) < far,
+        "the load given up on landed once the core came back"
+    );
+}
+
+#[test]
 fn a_wedged_core_answers_nothing_and_says_so() {
     let held = Arc::new(AtomicBool::new(true));
     let emu = spawn_with_core(Box::new(Wedge {

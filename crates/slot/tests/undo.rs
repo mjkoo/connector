@@ -165,3 +165,15 @@ fn undoing_a_load_the_core_rejects_says_so() {
     a.undo(3_000);
     assert_eq!(a.toast(), Some(Toast::LoadFailed));
 }
+
+#[test]
+fn undoing_a_load_on_a_wedged_core_says_the_core_is_not_responding() {
+    let d = tmp_root_with_carts(&["Emerald"]);
+    let core = FaultySnapshot::default();
+    let mut a = app_playing_with(d.path(), "Emerald", core.boxed());
+    a.apply_at(Action::SaveState, 1_000);
+    a.apply_at(Action::LoadState, 2_000);
+    core.wedged.store(true, Ordering::Relaxed);
+    a.undo(3_000);
+    assert_eq!(a.toast(), Some(Toast::CoreNotResponding));
+}

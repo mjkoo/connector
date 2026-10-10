@@ -233,6 +233,8 @@ impl Snapshot for StubSnapshot {
 pub struct FaultySnapshot {
     pub rejects: Arc<AtomicBool>,
     pub wedged: Arc<AtomicBool>,
+    pub sav_wedged: Arc<AtomicBool>,
+    pub loads: Arc<AtomicUsize>,
 }
 
 impl FaultySnapshot {
@@ -251,7 +253,10 @@ impl Snapshot for FaultySnapshot {
     }
 
     fn save_ram(&self) -> Option<Vec<u8>> {
-        None
+        if self.wedged() || self.sav_wedged.load(Ordering::Relaxed) {
+            return None;
+        }
+        Some(b"savdata".to_vec())
     }
 
     fn thumb(&self) -> Option<Vec<u8>> {
@@ -259,11 +264,12 @@ impl Snapshot for FaultySnapshot {
     }
 
     fn load(&self, _state: Vec<u8>) -> bool {
+        self.loads.fetch_add(1, Ordering::Relaxed);
         !self.wedged() && !self.rejects.load(Ordering::Relaxed)
     }
 
     fn responsive(&self) -> bool {
-        !self.wedged()
+        !self.wedged() && !self.sav_wedged.load(Ordering::Relaxed)
     }
 }
 

@@ -2468,6 +2468,10 @@ impl App {
             return true;
         };
         let (state, sav) = trusted_write(snapshot.as_ref(), state, "eject");
+        if !snapshot.responsive() {
+            eprintln!("connector: eject: the core stopped answering, keeping the cart in");
+            return false;
+        }
         let state = state.filter(|_| self.state.eject_save);
         match persist::eject(
             root,
@@ -3142,8 +3146,13 @@ impl App {
             }
         };
         let prior = snapshot.state();
+        if prior.is_none() && !snapshot.responsive() {
+            self.hud.toast(Toast::CoreNotResponding, self.now());
+            return true;
+        }
         if !snapshot.load(bytes) {
-            self.hud.toast(Toast::LoadFailed, self.now());
+            self.hud
+                .toast(load_failure_toast(snapshot.as_ref()), self.now());
             return true;
         }
         self.hud.toast(Toast::StateLoaded, self.now());
@@ -3165,6 +3174,9 @@ impl App {
         }
         let Some(state) = snapshot.state() else {
             eprintln!("connector: save: the core gave up no state");
+            if !snapshot.responsive() {
+                self.hud.toast(Toast::CoreNotResponding, self.now());
+            }
             return;
         };
         let thumb = snapshot.thumb().unwrap_or_default();
@@ -3240,7 +3252,8 @@ impl App {
             PendingUndo::Load { prior } => {
                 if let Some(snapshot) = &self.snapshot {
                     if !snapshot.load(prior) {
-                        self.hud.toast(Toast::LoadFailed, self.now());
+                        self.hud
+                            .toast(load_failure_toast(snapshot.as_ref()), self.now());
                     }
                 }
             }
@@ -3294,6 +3307,14 @@ impl App {
         if let Some(p) = &mut self.polaroids {
             p.set_title_face(Some(face));
         }
+    }
+}
+
+fn load_failure_toast(snapshot: &dyn Snapshot) -> Toast {
+    if snapshot.responsive() {
+        Toast::LoadFailed
+    } else {
+        Toast::CoreNotResponding
     }
 }
 

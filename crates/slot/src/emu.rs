@@ -81,7 +81,7 @@ pub struct EmuHandle {
 }
 
 enum Cmd {
-    Load(Vec<u8>, Sender<bool>),
+    Load(Vec<u8>, Sender<bool>, Arc<AtomicBool>),
     Save(Sender<Vec<u8>>),
     Sav(Sender<Option<Vec<u8>>>),
     Thumb(Sender<Option<Vec<u8>>>),
@@ -408,7 +408,11 @@ impl EmuHandle {
 
     pub fn request_load(&self, state: Vec<u8>) {
         let (tx, _) = channel();
-        request(&self.cmds, &self.shared, Cmd::Load(state, tx));
+        request(
+            &self.cmds,
+            &self.shared,
+            Cmd::Load(state, tx, Arc::new(AtomicBool::new(false))),
+        );
     }
 
     /// Shortens how long a snapshot waits for an answer, so a test of a wedged
@@ -470,7 +474,13 @@ impl Snapshot for EmuSnapshot {
     }
 
     fn load(&self, state: Vec<u8>) -> bool {
-        self.ask(|reply| Cmd::Load(state, reply)).unwrap_or(false)
+        // A load given up on must not land when the core comes back.
+        let abandoned = Arc::new(AtomicBool::new(false));
+        let loaded = self.ask(|reply| Cmd::Load(state, reply, abandoned.clone()));
+        if loaded.is_none() {
+            abandoned.store(true, Ordering::Release);
+        }
+        loaded.unwrap_or(false)
     }
 
     fn responsive(&self) -> bool {
@@ -919,7 +929,11 @@ impl Worker {
                 }
                 Err(e) => eprintln!("connector: {e}"),
             },
-            Cmd::Load(state, reply) => {
+            Cmd::Load(_, reply, abandoned) if abandoned.load(Ordering::Acquire) => {
+                eprintln!("connector: load: given up on, not loading");
+                let _ = reply.send(false);
+            }
+            Cmd::Load(state, reply, _) => {
                 let loaded = core.unserialize(&self.for_core(state));
                 if let Err(e) = &loaded {
                     eprintln!("connector: {e}");
