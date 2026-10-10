@@ -46,6 +46,10 @@ const MAX_LINK_PACKETS_PER_PRESENT: u32 = 256;
 /// core for wedged.
 const ANSWER_WAIT: Duration = Duration::from_secs(2);
 
+/// How long the UI waits on a core already taken for wedged, just long enough to
+/// see that it came back.
+const RECHECK_WAIT: Duration = Duration::from_millis(100);
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Speed {
     Paused,
@@ -444,7 +448,10 @@ impl EmuSnapshot {
     fn ask<T>(&self, cmd: impl FnOnce(Sender<T>) -> Cmd) -> Option<T> {
         let (tx, rx) = channel();
         request(&self.cmds, &self.shared, cmd(tx)).then_some(())?;
-        let wait = Duration::from_nanos(self.shared.answer_wait_ns.load(Ordering::Relaxed));
+        let mut wait = Duration::from_nanos(self.shared.answer_wait_ns.load(Ordering::Relaxed));
+        if self.shared.unanswered.load(Ordering::Acquire) {
+            wait = wait.min(RECHECK_WAIT);
+        }
         match rx.recv_timeout(wait) {
             Ok(answer) => {
                 self.shared.unanswered.store(false, Ordering::Release);

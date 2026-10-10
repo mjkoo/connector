@@ -713,6 +713,37 @@ fn a_load_given_up_on_never_lands_later() {
 }
 
 #[test]
+fn a_core_known_wedged_is_only_rechecked_briefly() {
+    let held = Arc::new(AtomicBool::new(true));
+    let emu = spawn_with_core(Box::new(Wedge {
+        inner: MockCore::new(),
+        held: held.clone(),
+    }));
+    let _release = Release(held.clone());
+    emu.set_answer_wait(Duration::from_secs(1));
+    let snapshot = emu.snapshot();
+    assert_eq!(snapshot.state(), None, "a wedged core answered");
+
+    let began = Instant::now();
+    assert_eq!(snapshot.state(), None, "a wedged core answered");
+    assert!(
+        began.elapsed() < Duration::from_millis(500),
+        "a core already known wedged was waited on for {:?}",
+        began.elapsed()
+    );
+
+    held.store(false, Ordering::Release);
+    assert!(
+        wait_for(|| snapshot.state().is_some()),
+        "the core never answered once freed"
+    );
+    assert!(
+        snapshot.responsive(),
+        "a core that answered again still looked wedged"
+    );
+}
+
+#[test]
 fn a_wedged_core_answers_nothing_and_says_so() {
     let held = Arc::new(AtomicBool::new(true));
     let emu = spawn_with_core(Box::new(Wedge {

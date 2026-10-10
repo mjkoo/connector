@@ -6,9 +6,10 @@
   `System/connector`, the log is `connector.log`, and settings move from
   `Config/slot.state` to `Config/connector.state` on first boot.
 - A core that stops responding no longer freezes eject, closing the lid, power off or
-  autosave. They give up after 2 seconds, and eject is refused with "Core not responding" so
-  the cart stays in rather than losing its save.
-- A save state the core rejects says "Load Failed" instead of "State Loaded".
+  autosave. The first request gives up after 2 seconds, later ones almost at once. Eject is
+  refused with "Core not responding", so the cart stays in rather than losing its save.
+- Saving or loading a state on a stuck core says "Core not responding", and a save state the
+  core rejects says "Load Failed" instead of "State Loaded".
 
 ## slot. releases
 
